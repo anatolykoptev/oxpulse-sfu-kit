@@ -1,0 +1,43 @@
+//! Per-subscriber simulcast layer preference.
+//!
+//! str0m's `Rid` type is an opaque 8-byte string id.
+//! LiveKit's convention — adopted by mediasoup and Jitsi — is `"q"` (lowest),
+//! `"h"` (mid), `"f"` (full). We build the three values as `const` so they
+//! cost nothing at runtime and match byte-for-byte with `Rid::from("q"|"h"|"f")`.
+
+use str0m::media::{MediaData, Rid};
+
+/// LiveKit low-resolution simulcast layer (`q`).
+pub const LOW: Rid = Rid::from_array(*b"q       ");
+/// LiveKit mid-resolution simulcast layer (`h`).
+pub const MEDIUM: Rid = Rid::from_array(*b"h       ");
+/// LiveKit full-resolution simulcast layer (`f`).
+pub const HIGH: Rid = Rid::from_array(*b"f       ");
+
+/// Decide whether `data` should be forwarded to a subscriber whose desired
+/// layer is `desired`.
+///
+/// Rules:
+/// - `data.rid == None` — non-simulcast publisher. Forward unconditionally.
+/// - `data.rid == Some(x)` — forward only if `x == desired`.
+pub(crate) fn matches(desired: Rid, data: &MediaData) -> bool {
+    match data.rid {
+        None => true,
+        Some(rid) => rid == desired,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn const_matches_from_str() {
+        // Invariant: our `const` Rids must be byte-identical to the value
+        // produced by str0m's `From<&str>` impl, otherwise `Eq` silently
+        // breaks the whole forwarder filter.
+        assert_eq!(LOW, Rid::from("q"));
+        assert_eq!(MEDIUM, Rid::from("h"));
+        assert_eq!(HIGH, Rid::from("f"));
+    }
+}

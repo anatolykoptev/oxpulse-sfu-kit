@@ -1,0 +1,55 @@
+[package]
+name = "str0m-sfu-kit"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Reusable multi-client SFU kit built on top of str0m. Simulcast, fanout, per-peer event routing."
+repository = "https://github.com/anatolykoptev/str0m-sfu-kit"
+homepage = "https://github.com/anatolykoptev/str0m-sfu-kit"
+documentation = "https://docs.rs/str0m-sfu-kit"
+readme = "README.md"
+keywords = ["webrtc", "sfu", "str0m", "simulcast", "fanout"]
+categories = ["multimedia", "network-programming", "asynchronous"]
+
+[lib]
+name = "str0m_sfu_kit"
+path = "src/lib.rs"
+
+[features]
+default = []
+active-speaker = ["dep:dominant-speaker"]
+metrics-prometheus = ["dep:prometheus"]
+test-utils = []
+
+[dependencies]
+str0m = "0.18"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+tracing = "0.1"
+anyhow = "1"
+
+dominant-speaker = { package = "rust-dominant-speaker", version = "0.1", optional = true }
+prometheus = { version = "0.13", default-features = false, optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "signal", "macros", "test-util"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+
+[[test]]
+name = "multi_client"
+required-features = ["test-utils"]
+
+[[test]]
+name = "simulcast_speaker"
+required-features = ["test-utils", "active-speaker"]
+
+[[test]]
+name = "metrics_integration"
+required-features = ["test-utils", "metrics-prometheus"]
+
+[[example]]
+name = "basic-sfu"
+path = "examples/basic-sfu.rs"
+required-features = ["active-speaker", "metrics-prometheus"]
