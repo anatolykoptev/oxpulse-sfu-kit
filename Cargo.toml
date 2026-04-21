@@ -2,7 +2,7 @@
 name = "str0m-sfu-kit"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.86"
 license = "MIT OR Apache-2.0"
 description = "Reusable multi-client SFU kit built on top of str0m. Simulcast, fanout, per-peer event routing."
 repository = "https://github.com/anatolykoptev/str0m-sfu-kit"
