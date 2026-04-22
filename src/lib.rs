@@ -79,17 +79,21 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod bandwidth;
 pub mod client;
 pub mod config;
 pub mod fanout;
 pub mod metrics;
 pub mod propagate;
 pub mod registry;
+pub mod rtcp_stats;
 pub mod udp_loop;
 
+pub use bandwidth::BandwidthEstimate;
 pub use client::Client;
 pub use config::SfuConfig;
 pub use metrics::SfuMetrics;
 pub use propagate::{ClientId, Propagated};
 pub use registry::Registry;
+pub use rtcp_stats::PeerRtcpStats;
 pub use udp_loop::run_udp_loop;

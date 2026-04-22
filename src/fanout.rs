@@ -43,7 +43,10 @@ pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
                     client.handle_keyframe_request(*req, *mid_in);
                 }
             }
-            Propagated::Noop | Propagated::Timeout(_) => {}
+            Propagated::Noop
+            | Propagated::Timeout(_)
+            | Propagated::BandwidthEstimate { .. }
+            | Propagated::RtcpStats { .. } => {}
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => {}
         }

@@ -12,7 +12,9 @@ use std::time::Instant;
 
 use str0m::media::{KeyframeRequest, MediaData, Mid};
 
+use crate::bandwidth::BandwidthEstimate;
 use crate::client::TrackIn;
+use crate::rtcp_stats::PeerRtcpStats;
 
 /// Monotonic per-process identifier for a connected peer.
 ///
@@ -67,6 +69,31 @@ pub enum Propagated {
         /// The peer that became the dominant speaker.
         peer_id: u64,
     },
+
+    /// Egress bandwidth estimate updated for this peer.
+    ///
+    /// Emitted from str0m's internal GoogCC each time the estimator produces a new
+    /// value (typically every 100–500 ms depending on TWCC traffic). Downstream
+    /// should consume this to drive layer selection or pacing decisions.
+    BandwidthEstimate {
+        /// The peer whose egress estimate changed.
+        peer_id: ClientId,
+        /// The new estimate.
+        estimate: BandwidthEstimate,
+    },
+
+    /// RTCP-derived stats updated for this peer.
+    ///
+    /// Derived from str0m's `Event::PeerStats` (emitted ~1 Hz). Contains
+    /// loss fraction and RTT; jitter is not available from the per-peer aggregate
+    /// event in str0m 0.18 (it requires per-mid `MediaEgressStats`) and is
+    /// always `Duration::ZERO` in this release.
+    RtcpStats {
+        /// The peer whose stats were updated.
+        peer_id: ClientId,
+        /// The updated stats snapshot.
+        stats: PeerRtcpStats,
+    },
 }
 
 impl Propagated {
@@ -83,6 +110,8 @@ impl Propagated {
             Propagated::Noop | Propagated::Timeout(_) => None,
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => None,
+            Propagated::BandwidthEstimate { peer_id, .. }
+            | Propagated::RtcpStats { peer_id, .. } => Some(*peer_id),
         }
     }
 }
