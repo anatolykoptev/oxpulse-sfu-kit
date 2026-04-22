@@ -106,7 +106,10 @@ fn no_str0m_in_public_api_surface() {
             if line.starts_with("pub const ") || line.starts_with("pub static ") {
                 // Extract the declared type: everything between the first `:` and `=`
                 if let Some((_, after_colon)) = line.split_once(':') {
-                    let declared_type = after_colon.split_once('=').map_or(after_colon, |(l, _)| l).trim();
+                    let declared_type = after_colon
+                        .split_once('=')
+                        .map_or(after_colon, |(l, _)| l)
+                        .trim();
                     if !declared_type.contains("str0m::") {
                         continue; // str0m:: only in initializer, not in the type
                     }
