@@ -5,11 +5,10 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use str0m::Rtc;
-
 use super::{layer, Client};
 use crate::metrics::SfuMetrics;
 use crate::propagate::ClientId;
+use crate::rtc::SfuRtc;
 
 fn next_client_id() -> ClientId {
     static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -17,15 +16,15 @@ fn next_client_id() -> ClientId {
 }
 
 impl Client {
-    /// Wrap a freshly-created [`Rtc`] instance.
+    /// Wrap a freshly-created [`SfuRtc`] instance.
     ///
     /// The `metrics` handle is replaced by the registry's own instance when
     /// [`Registry::insert`][crate::Registry::insert] is called, so all counters
     /// from all clients flow to the same Prometheus registry.
-    pub fn new(rtc: Rtc, metrics: Arc<SfuMetrics>) -> Self {
+    pub fn new(rtc: SfuRtc, metrics: Arc<SfuMetrics>) -> Self {
         Self {
             id: next_client_id(),
-            rtc,
+            rtc: rtc.0,
             tracks_in: Vec::new(),
             tracks_out: Vec::new(),
             chosen_rid: None,

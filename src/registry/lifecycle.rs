@@ -3,7 +3,7 @@
 //! Split from `registry/mod.rs` to keep the routing/polling concern separate
 //! from the reap/drain concern.
 
-use crate::client::Transmit;
+use crate::net::OutgoingDatagram;
 
 use super::Registry;
 
@@ -11,7 +11,7 @@ impl Registry {
     /// Drain every client's outbound queue into `sink`.
     ///
     /// The caller (usually the UDP loop) writes the bytes to the socket.
-    pub fn drain_transmits<F: FnMut(Transmit)>(&mut self, mut sink: F) {
+    pub fn drain_transmits<F: FnMut(OutgoingDatagram)>(&mut self, mut sink: F) {
         for client in self.clients.iter_mut() {
             for t in client.drain_pending_out() {
                 sink(t);

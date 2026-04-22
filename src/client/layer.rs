@@ -5,16 +5,15 @@
 //! `"h"` (mid), `"f"` (full). We build the three values as `const` so they
 //! cost nothing at runtime and match byte-for-byte with `Rid::from("q"|"h"|"f")`.
 
-use str0m::media::Rid;
-
+use crate::ids::SfuRid;
 use crate::media::SfuMediaPayload;
 
 /// LiveKit low-resolution simulcast layer (`q`).
-pub const LOW: Rid = Rid::from_array(*b"q       ");
+pub const LOW: SfuRid = SfuRid::LOW;
 /// LiveKit mid-resolution simulcast layer (`h`).
-pub const MEDIUM: Rid = Rid::from_array(*b"h       ");
+pub const MEDIUM: SfuRid = SfuRid::MEDIUM;
 /// LiveKit full-resolution simulcast layer (`f`).
-pub const HIGH: Rid = Rid::from_array(*b"f       ");
+pub const HIGH: SfuRid = SfuRid::HIGH;
 
 /// Decide whether `data` should be forwarded to a subscriber whose desired
 /// layer is `desired`.
@@ -22,24 +21,26 @@ pub const HIGH: Rid = Rid::from_array(*b"f       ");
 /// Rules:
 /// - `data.rid() == None` — non-simulcast publisher. Forward unconditionally.
 /// - `data.rid() == Some(x)` — forward only if `x == desired`.
-pub(crate) fn matches(desired: Rid, data: &SfuMediaPayload) -> bool {
+pub(crate) fn matches(desired: SfuRid, data: &SfuMediaPayload) -> bool {
     match data.rid() {
         None => true,
-        Some(rid) => rid.to_str0m() == desired,
+        Some(rid) => rid == desired,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use str0m::media::Rid;
+
     use super::*;
 
     #[test]
     fn const_matches_from_str() {
-        // Invariant: our `const` Rids must be byte-identical to the value
+        // Invariant: our `const` SfuRids must be byte-identical to the value
         // produced by str0m's `From<&str>` impl, otherwise `Eq` silently
         // breaks the whole forwarder filter.
-        assert_eq!(LOW, Rid::from("q"));
-        assert_eq!(MEDIUM, Rid::from("h"));
-        assert_eq!(HIGH, Rid::from("f"));
+        assert_eq!(LOW.to_str0m(), Rid::from("q"));
+        assert_eq!(MEDIUM.to_str0m(), Rid::from("h"));
+        assert_eq!(HIGH.to_str0m(), Rid::from("f"));
     }
 }

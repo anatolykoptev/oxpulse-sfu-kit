@@ -76,6 +76,13 @@ impl SfuRid {
     pub(crate) fn to_str0m(self) -> str0m::media::Rid {
         self.0
     }
+
+    /// LiveKit low-resolution simulcast layer (`q`).
+    pub const LOW: Self = Self(str0m::media::Rid::from_array(*b"q       "));
+    /// LiveKit mid-resolution simulcast layer (`h`).
+    pub const MEDIUM: Self = Self(str0m::media::Rid::from_array(*b"h       "));
+    /// LiveKit full-resolution simulcast layer (`f`).
+    pub const HIGH: Self = Self(str0m::media::Rid::from_array(*b"f       "));
 }
 
 #[allow(dead_code)]

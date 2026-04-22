@@ -9,9 +9,10 @@ use std::time::Instant;
 use str0m::format::{Codec, CodecExtra, CodecSpec, FormatParams, PayloadParams};
 use str0m::media::{Frequency, MediaData, MediaKind, MediaTime, Mid, Pt, Rid};
 use str0m::rtp::{ExtensionValues, SeqNo};
-use str0m::Rtc;
 
+use crate::ids::SfuRid;
 use crate::media::SfuMediaPayload;
+use crate::rtc::SfuRtc;
 
 use super::tracks::{TrackIn, TrackInEntry};
 use super::Client;
@@ -25,7 +26,7 @@ impl Client {
     /// canonical write. Used by screenshare-like tests that need to pin
     /// `active_rids` to a subset of the full simulcast ladder.
     pub fn seed_active_rid_for_tests(&mut self, rid: Rid) {
-        self.active_rids.insert(rid);
+        self.active_rids.insert(SfuRid::from_str0m(rid));
     }
 
     /// Mark the underlying `Rtc` as disconnected so `is_alive` returns false.
@@ -43,7 +44,7 @@ impl Client {
 /// will no-op, but the `delivered_media` counter still ticks so fanout is
 /// observable from tests.
 pub fn new_client(id: ClientId) -> Client {
-    let rtc = Rtc::builder().build(Instant::now());
+    let rtc = SfuRtc::from_raw(str0m::Rtc::builder().build(Instant::now()));
     let metrics = Arc::new(SfuMetrics::new_default());
     let mut c = Client::new(rtc, metrics);
     c.id = id;
@@ -74,7 +75,7 @@ pub fn seed_track_in(client: &mut Client, mid_tag: u8, kind: MediaKind) -> Arc<T
 /// Used by fanout / simulcast filter tests to inject packets without running
 /// RTP packetization. The layer filter runs before any writer call, so
 /// tests observe filter semantics purely via the `delivered_media` counter.
-pub fn make_media_data(mid_tag: u8, rid: Option<Rid>) -> SfuMediaPayload {
+pub fn make_media_data(mid_tag: u8, rid: Option<SfuRid>) -> SfuMediaPayload {
     let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
     let pt = Pt::from(96u8);
     let seq: SeqNo = 0u64.into();
@@ -91,7 +92,7 @@ pub fn make_media_data(mid_tag: u8, rid: Option<Rid>) -> SfuMediaPayload {
     let raw = MediaData {
         mid,
         pt,
-        rid,
+        rid: rid.map(|r| r.to_str0m()),
         params,
         time: MediaTime::from_90khz(0),
         network_time: Instant::now(),

@@ -5,21 +5,20 @@
 
 use std::sync::atomic::Ordering;
 
-use str0m::media::Rid;
-use str0m::Input;
-
 use super::Client;
+use crate::ids::SfuRid;
+use crate::net::IncomingDatagram;
 
 impl Client {
     /// This subscriber's current desired simulcast layer.
-    pub fn desired_layer(&self) -> Rid {
+    pub fn desired_layer(&self) -> SfuRid {
         self.desired_layer
     }
 
     /// Override this subscriber's desired simulcast layer.
     ///
     /// Takes effect on the next forwarded packet; no SDP renegotiation required.
-    pub fn set_desired_layer(&mut self, rid: Rid) {
+    pub fn set_desired_layer(&mut self, rid: SfuRid) {
         self.desired_layer = rid;
         // Invalidate the cached chosen layer so keyframe requests target the
         // correct RID on the next forwarded packet.
@@ -32,7 +31,7 @@ impl Client {
     /// first video packet arrives. Callers that use this as the "available
     /// layers" input should fall back to the full ladder (`[LOW, MEDIUM, HIGH]`)
     /// when empty — before the first packet the full ladder is the correct assumption.
-    pub fn active_rids(&self) -> Vec<Rid> {
+    pub fn active_rids(&self) -> Vec<SfuRid> {
         self.active_rids.iter().copied().collect()
     }
 
@@ -54,10 +53,22 @@ impl Client {
         self.rtc.is_alive()
     }
 
-    /// str0m demux probe — returns `true` if this client owns the given datagram.
+    /// Demux probe — returns `true` if this client owns the given datagram.
     ///
     /// Used by the registry to route incoming UDP to the correct peer.
-    pub fn accepts(&self, input: &Input) -> bool {
-        self.rtc.accepts(input)
+    pub fn accepts(&self, datagram: &IncomingDatagram) -> bool {
+        let Ok(contents) = (&datagram.contents[..]).try_into() else {
+            return false;
+        };
+        let input = str0m::Input::Receive(
+            datagram.received_at,
+            str0m::net::Receive {
+                proto: datagram.proto.to_str0m(),
+                source: datagram.source,
+                destination: datagram.destination,
+                contents,
+            },
+        );
+        self.rtc.accepts(&input)
     }
 }

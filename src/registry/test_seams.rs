@@ -3,13 +3,12 @@
 //! Gated with `cfg(any(test, feature = "test-utils"))` so the release build is
 //! lean and these observer APIs cannot be abused in production code.
 
-use str0m::media::Rid;
-
 #[cfg(feature = "active-speaker")]
 use std::time::Instant;
 
 use super::Registry;
 use crate::fanout::fanout;
+use crate::ids::SfuRid;
 use crate::propagate::Propagated;
 
 impl Registry {
@@ -39,7 +38,7 @@ impl Registry {
 
     /// Flip a client's desired simulcast layer by index.
     #[doc(hidden)]
-    pub fn set_desired_layer_for_tests(&mut self, idx: usize, rid: Rid) {
+    pub fn set_desired_layer_for_tests(&mut self, idx: usize, rid: SfuRid) {
         self.clients[idx].set_desired_layer(rid);
     }
 

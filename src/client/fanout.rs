@@ -103,11 +103,11 @@ impl Client {
 }
 
 fn rid_label(rid: Rid) -> &'static str {
-    if rid == layer::LOW {
+    if rid == layer::LOW.to_str0m() {
         "q"
-    } else if rid == layer::MEDIUM {
+    } else if rid == layer::MEDIUM.to_str0m() {
         "h"
-    } else if rid == layer::HIGH {
+    } else if rid == layer::HIGH.to_str0m() {
         "f"
     } else {
         "other"

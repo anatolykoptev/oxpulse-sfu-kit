@@ -11,14 +11,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use str0m::net::{Protocol, Receive};
-use str0m::Input;
-
 use crate::client::Client;
-use crate::fanout::fanout;
 use crate::metrics::SfuMetrics;
+use crate::net::{IncomingDatagram, SfuProtocol};
 use crate::propagate::Propagated;
 
+mod drive;
 mod lifecycle;
 #[cfg(any(test, feature = "test-utils"))]
 mod test_seams;
@@ -108,21 +106,15 @@ impl Registry {
         destination: SocketAddr,
         payload: &[u8],
     ) -> bool {
-        let Ok(contents) = payload.try_into() else {
-            tracing::debug!(?source, bytes = payload.len(), "undecodable udp datagram");
-            return false;
+        let datagram = IncomingDatagram {
+            received_at: Instant::now(),
+            proto: SfuProtocol::Udp,
+            source,
+            destination,
+            contents: payload.to_vec(),
         };
-        let input = Input::Receive(
-            Instant::now(),
-            Receive {
-                proto: Protocol::Udp,
-                source,
-                destination,
-                contents,
-            },
-        );
-        if let Some(client) = self.clients.iter_mut().find(|c| c.accepts(&input)) {
-            client.handle_input(input);
+        if let Some(client) = self.clients.iter_mut().find(|c| c.accepts(&datagram)) {
+            client.handle_input(datagram);
             true
         } else {
             tracing::debug!(?source, "no client accepts udp datagram");
@@ -138,78 +130,5 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
         self.detector.record_level(peer_id, level_raw, now);
-    }
-
-    /// Poll every client until each returns a `Timeout`, queuing propagated events.
-    ///
-    /// Returns the earliest next wake-up deadline.
-    pub fn poll_all(&mut self, now: Instant) -> Instant {
-        let mut deadline = now + std::time::Duration::from_millis(100);
-        for client in self.clients.iter_mut() {
-            loop {
-                if !client.is_alive() {
-                    break;
-                }
-                match client.poll_output() {
-                    Propagated::Timeout(t) => {
-                        deadline = deadline.min(t);
-                        break;
-                    }
-                    Propagated::Noop => continue,
-                    Propagated::BandwidthEstimate {
-                        peer_id,
-                        ref estimate,
-                    } => {
-                        self.metrics.update_peer_bwe(*peer_id, estimate.bps);
-                        self.to_propagate.push_back(Propagated::BandwidthEstimate {
-                            peer_id,
-                            estimate: *estimate,
-                        });
-                    }
-                    Propagated::RtcpStats { peer_id, ref stats } => {
-                        self.metrics.update_peer_rtcp(
-                            *peer_id,
-                            stats.fraction_lost,
-                            stats.rtt.as_secs_f64() * 1000.0,
-                            stats.jitter.as_secs_f64() * 1000.0,
-                        );
-                        self.to_propagate.push_back(Propagated::RtcpStats {
-                            peer_id,
-                            stats: *stats,
-                        });
-                    }
-                    other => self.to_propagate.push_back(other),
-                }
-            }
-        }
-        deadline
-    }
-
-    /// Advance the dominant-speaker detector one tick.
-    ///
-    /// Queues a [`Propagated::ActiveSpeakerChanged`] when dominance changes.
-    /// Call this on a 300ms interval (see `dominant_speaker::TICK_INTERVAL`).
-    /// Only available with the `active-speaker` feature.
-    #[cfg(feature = "active-speaker")]
-    pub fn tick_active_speaker(&mut self, now: Instant) {
-        if let Some(peer_id) = self.detector.tick(now) {
-            self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id });
-        }
-    }
-
-    /// Drive the session clock forward on every client.
-    pub fn tick(&mut self, now: Instant) {
-        for client in self.clients.iter_mut() {
-            client.handle_input(Input::Timeout(now));
-        }
-    }
-
-    /// Fan out every queued propagated event to the appropriate clients.
-    pub fn fanout_pending(&mut self) {
-        while let Some(p) = self.to_propagate.pop_front() {
-            fanout(&p, &mut self.clients);
-        }
     }
 }

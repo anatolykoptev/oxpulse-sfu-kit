@@ -12,11 +12,14 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Weak};
+use std::time::Instant;
 
 use str0m::media::{KeyframeRequestKind, MediaData, MediaKind, Mid, Rid};
-use str0m::{Event, IceConnectionState, Input, Output, Rtc};
+use str0m::{Event, IceConnectionState, Output, Rtc};
 
+use crate::ids::SfuRid;
 use crate::metrics::SfuMetrics;
+use crate::net::{IncomingDatagram, OutgoingDatagram};
 use crate::propagate::{ClientId, Propagated};
 
 pub mod accessors;
@@ -31,9 +34,6 @@ pub mod tracks;
 
 pub use tracks::TrackIn;
 use tracks::{TrackInEntry, TrackOut, TrackOutState};
-
-/// Outbound UDP datagram produced by a client's str0m state machine.
-pub type Transmit = str0m::net::Transmit;
 
 /// Per-peer state machine wrapping a str0m [`Rtc`] instance.
 ///
@@ -50,12 +50,12 @@ pub struct Client {
     /// Last simulcast RID actually forwarded to this peer. `None` = no simulcast yet.
     pub(crate) chosen_rid: Option<Rid>,
     /// Preferred simulcast layer (default [`layer::LOW`]).
-    pub(crate) desired_layer: Rid,
+    pub(crate) desired_layer: SfuRid,
     /// Simulcast RIDs this peer has been observed publishing.
     /// Populated on every incoming `MediaData`. Empty = bootstrap / non-simulcast.
-    pub(crate) active_rids: HashSet<Rid>,
+    pub(crate) active_rids: HashSet<SfuRid>,
     /// Outbound datagrams pending flush by the registry.
-    pub(crate) pending_out: VecDeque<Transmit>,
+    pub(crate) pending_out: VecDeque<str0m::net::Transmit>,
     /// Prometheus handles (shared with the registry when inserted).
     pub(crate) metrics: Arc<SfuMetrics>,
     /// Post-layer-filter forwarded-media counter (readable by integration tests).
@@ -66,13 +66,40 @@ pub struct Client {
 }
 
 impl Client {
-    /// Feed a demuxed UDP datagram (or timeout) into str0m.
-    pub fn handle_input(&mut self, input: Input) {
+    /// Feed a demuxed UDP datagram into str0m.
+    pub fn handle_input(&mut self, datagram: IncomingDatagram) {
         if !self.rtc.is_alive() {
             return;
         }
+        let contents = match (&datagram.contents[..]).try_into() {
+            Ok(c) => c,
+            Err(_) => {
+                tracing::debug!(client = *self.id, "ignoring empty or invalid datagram");
+                return;
+            }
+        };
+        let input = str0m::Input::Receive(
+            datagram.received_at,
+            str0m::net::Receive {
+                proto: datagram.proto.to_str0m(),
+                source: datagram.source,
+                destination: datagram.destination,
+                contents,
+            },
+        );
         if let Err(e) = self.rtc.handle_input(input) {
             tracing::warn!(client = *self.id, error = ?e, "client disconnected on handle_input");
+            self.rtc.disconnect();
+        }
+    }
+
+    /// Feed a timeout event into str0m (internal use by registry tick).
+    pub(crate) fn handle_timeout(&mut self, at: Instant) {
+        if !self.rtc.is_alive() {
+            return;
+        }
+        if let Err(e) = self.rtc.handle_input(str0m::Input::Timeout(at)) {
+            tracing::warn!(client = *self.id, error = ?e, "client disconnected on timeout");
             self.rtc.disconnect();
         }
     }
@@ -140,7 +167,7 @@ impl Client {
             self.request_keyframe_throttled(data.mid, data.rid, KeyframeRequestKind::Fir);
         }
         if let Some(rid) = data.rid {
-            self.active_rids.insert(rid);
+            self.active_rids.insert(SfuRid::from_str0m(rid));
         }
         Propagated::MediaData(self.id, crate::media::SfuMediaPayload::from_str0m(data))
     }
@@ -156,7 +183,9 @@ impl Client {
     /// Drain queued outbound datagrams.
     ///
     /// The registry calls this after each poll cycle to pass bytes to the tokio socket.
-    pub fn drain_pending_out(&mut self) -> std::collections::vec_deque::Drain<'_, Transmit> {
-        self.pending_out.drain(..)
+    pub fn drain_pending_out(&mut self) -> impl Iterator<Item = OutgoingDatagram> + '_ {
+        std::mem::take(&mut self.pending_out)
+            .into_iter()
+            .map(OutgoingDatagram::from_transmit)
     }
 }
