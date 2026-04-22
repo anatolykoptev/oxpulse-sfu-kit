@@ -156,6 +156,28 @@ impl Registry {
                         break;
                     }
                     Propagated::Noop => continue,
+                    Propagated::BandwidthEstimate {
+                        peer_id,
+                        ref estimate,
+                    } => {
+                        self.metrics.update_peer_bwe(*peer_id, estimate.bps);
+                        self.to_propagate.push_back(Propagated::BandwidthEstimate {
+                            peer_id,
+                            estimate: *estimate,
+                        });
+                    }
+                    Propagated::RtcpStats { peer_id, ref stats } => {
+                        self.metrics.update_peer_rtcp(
+                            *peer_id,
+                            stats.fraction_lost,
+                            stats.rtt.as_secs_f64() * 1000.0,
+                            stats.jitter.as_secs_f64() * 1000.0,
+                        );
+                        self.to_propagate.push_back(Propagated::RtcpStats {
+                            peer_id,
+                            stats: *stats,
+                        });
+                    }
                     other => self.to_propagate.push_back(other),
                 }
             }

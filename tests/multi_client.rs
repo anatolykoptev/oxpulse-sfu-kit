@@ -6,11 +6,11 @@
 
 use std::sync::Arc;
 
-use str0m::media::MediaKind;
 use oxpulse_sfu_kit::client::layer;
 use oxpulse_sfu_kit::client::test_seed::{make_media_data, new_client, seed_track_in};
 use oxpulse_sfu_kit::client::TrackIn;
 use oxpulse_sfu_kit::{ClientId, Propagated, Registry};
+use str0m::media::MediaKind;
 
 #[test]
 fn fanout_every_to_every_excludes_origin() {

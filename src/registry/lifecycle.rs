@@ -36,6 +36,7 @@ impl Registry {
                 detector.remove_peer(*c.id);
                 metrics.inc_client_disconnect();
                 metrics.dec_active_participants();
+                metrics.reap_dead_peer(*c.id);
             }
             alive
         });
