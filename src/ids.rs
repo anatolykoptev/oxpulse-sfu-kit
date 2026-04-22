@@ -14,21 +14,35 @@ use std::str::FromStr;
 pub struct SfuRid(str0m::media::Rid);
 
 /// Media stream identifier within a single peer connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SfuMid(str0m::media::Mid);
 
 /// RTP payload type (codec binding within a session).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SfuPt(str0m::media::Pt);
 
 impl FromStr for SfuRid {
     type Err = InvalidRid;
 
-    /// Parse from a `str` slice (RID is a short ASCII identifier).
+    /// Parse a simulcast layer identifier from a string.
     ///
-    /// Returns [`Err(InvalidRid)`][InvalidRid] if `s` is empty.
-    fn from_str(s: &str) -> Result<Self, InvalidRid> {
+    /// Accepts ASCII alphanumeric strings of length 1..=8 bytes.
+    /// Rejects:
+    /// - empty input
+    /// - any character outside `[A-Za-z0-9]` (RFC 8852 restricts RID to alphanumeric)
+    /// - input longer than 8 bytes (str0m's internal limit)
+    ///
+    /// This is stricter than str0m's own `Rid::from(&str)` which silently
+    /// mangles non-alphanumeric characters and truncates overlong input.
+    /// The wrapper enforces the contract explicitly so roundtrips are faithful.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
+            return Err(InvalidRid);
+        }
+        if s.len() > 8 {
+            return Err(InvalidRid);
+        }
+        if !s.bytes().all(|b| b.is_ascii_alphanumeric()) {
             return Err(InvalidRid);
         }
         Ok(SfuRid(str0m::media::Rid::from(s)))
@@ -100,5 +114,49 @@ mod tests {
     #[test]
     fn rid_rejects_empty() {
         assert!("".parse::<SfuRid>().is_err());
+    }
+
+    #[test]
+    fn rid_rejects_non_alphanumeric() {
+        assert!(SfuRid::from_str("low-res").is_err());
+        assert!(SfuRid::from_str("a b").is_err());
+        assert!(SfuRid::from_str("x!").is_err());
+    }
+
+    #[test]
+    fn rid_rejects_overlong() {
+        // 9 bytes > 8-byte str0m limit
+        assert!(SfuRid::from_str("123456789").is_err());
+    }
+
+    #[test]
+    fn rid_accepts_all_alphanumeric() {
+        for s in &["q", "h", "f", "a1", "LAYER1", "12345678"] {
+            assert!(SfuRid::from_str(s).is_ok(), "expected {s} to parse");
+        }
+    }
+
+    #[test]
+    fn rid_roundtrip_fidelity() {
+        // With strict validation, display MUST match input for all accepted values.
+        for s in &["q", "h", "f", "hi1080"] {
+            let rid: SfuRid = s.parse().expect("parse");
+            assert_eq!(rid.to_string(), *s);
+        }
+    }
+
+    #[test]
+    fn mid_roundtrip() {
+        let raw = str0m::media::Mid::from("0");
+        let mid = SfuMid::from_str0m(raw);
+        assert_eq!(mid.to_str0m(), raw);
+    }
+
+    #[test]
+    fn pt_roundtrip() {
+        // Pt implements From<u8> via str0m's num_id! macro.
+        let raw = str0m::media::Pt::from(96u8);
+        let pt = SfuPt::from_str0m(raw);
+        assert_eq!(pt.to_str0m(), raw);
     }
 }
