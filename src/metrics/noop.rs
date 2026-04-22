@@ -30,5 +30,6 @@ impl SfuMetrics {
     ) {
     }
     pub(crate) fn update_peer_bwe(&self, _peer_id: u64, _bps: u64) {}
+    /// Noop cardinality reaper — no-op when Prometheus is disabled.
     pub fn reap_dead_peer(&self, _peer_id: u64) {}
 }

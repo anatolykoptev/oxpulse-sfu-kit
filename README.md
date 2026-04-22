@@ -54,13 +54,12 @@ async fn main() -> anyhow::Result<()> {
 Insert a peer after completing ICE/DTLS signaling:
 
 ```rust,no_run
-use str0m::Rtc;
-use oxpulse_sfu_kit::{Client, Registry};
+use oxpulse_sfu_kit::{Client, Registry, SfuRtcBuilder};
 use oxpulse_sfu_kit::metrics::SfuMetrics;
 use std::sync::Arc;
 
 let mut registry = Registry::new(Arc::new(SfuMetrics::default()));
-let rtc: Rtc = todo!("complete ICE/DTLS handshake");
+let rtc = SfuRtcBuilder::new().build(); // or SfuRtc::from_raw(raw_rtc) for advanced use
 let client = Client::new(rtc, Arc::new(SfuMetrics::default()));
 registry.insert(client);
 ```

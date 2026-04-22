@@ -24,8 +24,7 @@
 //!
 //! ```no_run
 //! use std::sync::Arc;
-//! use str0m::Rtc;
-//! use oxpulse_sfu_kit::{Client, Registry, SfuConfig, udp_loop};
+//! use oxpulse_sfu_kit::{Client, Registry, SfuConfig, SfuRtcBuilder, udp_loop};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {

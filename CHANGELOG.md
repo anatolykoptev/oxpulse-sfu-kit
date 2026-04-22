@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-23
+
+### Breaking
+
+- **str0m encapsulation pass.** Public API no longer exposes `str0m::*` types directly. Motivated by str0m discussion [#944](https://github.com/algesten/str0m/discussions/944) — both Thomas Eizinger (firezone) and Martin Algesten (str0m author) recommended hiding str0m from our public surface so pre-1.0 str0m minor bumps stop propagating as breaking releases downstream.
+
+  Signature changes:
+
+  | Before (v0.2) | After (v0.3) |
+  |---------------|---------------|
+  | `Propagated::MediaData(ClientId, str0m::media::MediaData)` | `Propagated::MediaData(ClientId, SfuMediaPayload)` |
+  | `Propagated::KeyframeRequest(ClientId, str0m::media::KeyframeRequest, ClientId, str0m::media::Mid)` | `Propagated::KeyframeRequest(ClientId, SfuKeyframeRequest, ClientId, SfuMid)` |
+  | `Client::new(str0m::Rtc, Arc<SfuMetrics>)` | `Client::new(SfuRtc, Arc<SfuMetrics>)` |
+  | `Client::handle_input(str0m::Input)` | `Client::handle_input(IncomingDatagram)` |
+  | `Client::accepts(&str0m::Input) -> bool` | `Client::accepts(&IncomingDatagram) -> bool` |
+  | `Client::drain_pending_out() -> Drain<'_, Transmit>` | `Client::drain_pending_out() -> impl Iterator<Item = OutgoingDatagram> + '_` |
+  | `Client::desired_layer() -> str0m::media::Rid` | `Client::desired_layer() -> SfuRid` |
+  | `Client::set_desired_layer(str0m::media::Rid)` | `Client::set_desired_layer(SfuRid)` |
+  | `Client::active_rids() -> Vec<str0m::media::Rid>` | `Client::active_rids() -> Vec<SfuRid>` |
+  | `pub type Transmit = str0m::net::Transmit;` | removed (use `OutgoingDatagram`) |
+
+- **Escape hatch**: new `oxpulse_sfu_kit::raw` module re-exports `str0m::Rtc` as `RawRtc` and `str0m::RtcConfig` as `RawRtcConfig`. It is **explicitly semver-exempt** — minor str0m bumps may alter it without a major bump of this crate. Construct an `SfuRtc` from a raw one via `SfuRtc::from_raw(rtc)`.
+
+### Added
+
+- `SfuRid` / `SfuMid` / `SfuPt` — newtype wrappers for str0m identifier types. `SfuRid` has strict validation (rejects empty, non-alphanumeric, and >8-byte input) and constants `SfuRid::LOW` / `MEDIUM` / `HIGH` for the `"q"` / `"h"` / `"f"` simulcast convention.
+- `SfuMediaPayload` / `SfuMediaKind` — media payload + kind wrappers with accessor-based API.
+- `SfuKeyframeRequest` / `SfuKeyframeKind` — keyframe-request wrappers (`Pli` / `Fir`).
+- `IncomingDatagram` / `OutgoingDatagram` / `SfuProtocol` — datagram wrappers with public fields (transparent containers).
+- `SfuRtc` / `SfuRtcBuilder` — opaque Rtc handle + façade builder exposing `enable_bwe()`.
+- `raw` module — semver-exempt escape hatch.
+- `tests/encapsulation_surface.rs` — compile-time guard grepping public API for str0m leaks with a documented allowlist for `SfuRtc::from_raw`.
+
+### Migration
+
+Most downstream code changes are mechanical:
+
+```rust
+// before (v0.2)
+use str0m::Rtc;
+let rtc = Rtc::new(Instant::now());
+let client = Client::new(rtc, metrics);
+
+// after (v0.3)
+use oxpulse_sfu_kit::SfuRtcBuilder;
+let rtc = SfuRtcBuilder::new().build();
+let client = Client::new(rtc, metrics);
+```
+
+```rust
+// before
+match propagated {
+    Propagated::MediaData(id, data) => forward(data.mid, &data.data),
+    _ => {}
+}
+
+// after
+match propagated {
+    Propagated::MediaData(id, payload) => forward(payload.mid(), payload.data()),
+    _ => {}
+}
+```
+
+For datagram receive paths:
+
+```rust
+// before: Input::Receive(...) passed directly to client.handle_input(...)
+// after: build IncomingDatagram and pass it
+let datagram = IncomingDatagram {
+    received_at: Instant::now(),
+    proto: SfuProtocol::Udp,
+    source: remote_addr,
+    destination: local_addr,
+    contents: buf.to_vec(),
+};
+if client.accepts(&datagram) {
+    client.handle_input(datagram);
+}
+```
+
 ## [0.2.0] - 2026-04-22
 
 ### Added
