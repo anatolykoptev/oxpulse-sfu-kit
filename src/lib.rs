@@ -96,4 +96,4 @@ pub use metrics::SfuMetrics;
 pub use propagate::{ClientId, Propagated};
 pub use registry::Registry;
 pub use rtcp_stats::PeerRtcpStats;
-pub use udp_loop::run_udp_loop;
+pub use udp_loop::{run_udp_loop, serve_socket};

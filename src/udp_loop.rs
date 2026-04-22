@@ -65,6 +65,9 @@ pub async fn bind(config: &SfuConfig) -> anyhow::Result<UdpSocket> {
 
 /// Drive the receive loop on an already-bound socket.
 ///
+/// Constructs a [`Registry`] internally. For multi-room deployments where the
+/// caller manages the registry lifecycle, use [`serve_socket`] instead.
+///
 /// Returns once `shutdown` resolves or a fatal socket error occurs.
 pub async fn serve<F>(
     socket: UdpSocket,
@@ -74,8 +77,25 @@ pub async fn serve<F>(
 where
     F: Future<Output = ()>,
 {
-    let local = socket.local_addr().context("failed to read local_addr")?;
     let mut registry = Registry::new(metrics);
+    serve_socket(socket, &mut registry, shutdown).await
+}
+
+/// Serve a single UDP socket against a caller-owned [`Registry`].
+///
+/// Useful for multi-room deployments where the caller controls socket
+/// lifecycle and peer registration independently of the receive loop.
+///
+/// Returns once `shutdown` resolves or a fatal socket error occurs.
+pub async fn serve_socket<F>(
+    socket: UdpSocket,
+    registry: &mut Registry,
+    shutdown: F,
+) -> anyhow::Result<()>
+where
+    F: Future<Output = ()>,
+{
+    let local = socket.local_addr().context("failed to read local_addr")?;
     let mut buf = vec![0u8; RECV_BUFFER_BYTES];
     let mut aso_interval = tokio::time::interval(Duration::from_millis(ASO_TICK_MS));
     aso_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -87,7 +107,7 @@ where
 
         let deadline = registry.poll_all(Instant::now());
         registry.fanout_pending();
-        flush_transmits(&socket, &mut registry).await;
+        flush_transmits(&socket, registry).await;
 
         let sleep = deadline
             .saturating_duration_since(Instant::now())
