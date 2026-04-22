@@ -21,4 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/basic-sfu.rs` — complete single-node SFU with metrics endpoint
 - CI: fmt, clippy, tests on stable/beta/MSRV (1.85), docs
 
-[0.1.0]: https://github.com/anatolykoptev/str0m-sfu-kit/releases/tag/v0.1.0
+[0.1.0]: https://github.com/anatolykoptev/oxpulse-sfu-kit/releases/tag/v0.1.0

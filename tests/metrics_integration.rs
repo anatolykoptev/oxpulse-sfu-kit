@@ -7,10 +7,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use str0m::media::MediaKind;
-use str0m_sfu_kit::client::layer;
-use str0m_sfu_kit::client::test_seed::{make_media_data, new_client, seed_track_in};
-use str0m_sfu_kit::metrics::SfuMetrics;
-use str0m_sfu_kit::{udp_loop, ClientId, Propagated, Registry, SfuConfig};
+use oxpulse_sfu_kit::client::layer;
+use oxpulse_sfu_kit::client::test_seed::{make_media_data, new_client, seed_track_in};
+use oxpulse_sfu_kit::metrics::SfuMetrics;
+use oxpulse_sfu_kit::{udp_loop, ClientId, Propagated, Registry, SfuConfig};
 use tokio::net::UdpSocket;
 use tokio::sync::oneshot;
 use tokio::time::timeout;

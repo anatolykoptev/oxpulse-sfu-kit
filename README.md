@@ -1,8 +1,8 @@
-# str0m-sfu-kit
+# oxpulse-sfu-kit
 
-[![CI](https://github.com/anatolykoptev/str0m-sfu-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/anatolykoptev/str0m-sfu-kit/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/str0m-sfu-kit.svg)](https://crates.io/crates/str0m-sfu-kit)
-[![docs.rs](https://docs.rs/str0m-sfu-kit/badge.svg)](https://docs.rs/str0m-sfu-kit)
+[![CI](https://github.com/anatolykoptev/oxpulse-sfu-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/anatolykoptev/oxpulse-sfu-kit/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/oxpulse-sfu-kit.svg)](https://crates.io/crates/oxpulse-sfu-kit)
+[![docs.rs](https://docs.rs/oxpulse-sfu-kit/badge.svg)](https://docs.rs/oxpulse-sfu-kit)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![MSRV](https://img.shields.io/badge/MSRV-1.86-blue.svg)](#status)
 
@@ -35,13 +35,13 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-str0m-sfu-kit = "0.1"
+oxpulse-sfu-kit = "0.1"
 ```
 
 Minimal run loop:
 
 ```rust,no_run
-use str0m_sfu_kit::{SfuConfig, udp_loop};
+use oxpulse_sfu_kit::{SfuConfig, udp_loop};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -55,8 +55,8 @@ Insert a peer after completing ICE/DTLS signaling:
 
 ```rust,no_run
 use str0m::Rtc;
-use str0m_sfu_kit::{Client, Registry};
-use str0m_sfu_kit::metrics::SfuMetrics;
+use oxpulse_sfu_kit::{Client, Registry};
+use oxpulse_sfu_kit::metrics::SfuMetrics;
 use std::sync::Arc;
 
 let mut registry = Registry::new(Arc::new(SfuMetrics::default()));

@@ -5,8 +5,8 @@
 
 use std::time::{Duration, Instant};
 
-use str0m_sfu_kit::client::test_seed::new_client;
-use str0m_sfu_kit::{ClientId, Propagated, Registry};
+use oxpulse_sfu_kit::client::test_seed::new_client;
+use oxpulse_sfu_kit::{ClientId, Propagated, Registry};
 
 #[test]
 fn active_speaker_dominance_and_hysteresis_and_skip_self() {

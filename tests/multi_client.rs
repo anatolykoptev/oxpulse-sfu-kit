@@ -7,10 +7,10 @@
 use std::sync::Arc;
 
 use str0m::media::MediaKind;
-use str0m_sfu_kit::client::layer;
-use str0m_sfu_kit::client::test_seed::{make_media_data, new_client, seed_track_in};
-use str0m_sfu_kit::client::TrackIn;
-use str0m_sfu_kit::{ClientId, Propagated, Registry};
+use oxpulse_sfu_kit::client::layer;
+use oxpulse_sfu_kit::client::test_seed::{make_media_data, new_client, seed_track_in};
+use oxpulse_sfu_kit::client::TrackIn;
+use oxpulse_sfu_kit::{ClientId, Propagated, Registry};
 
 #[test]
 fn fanout_every_to_every_excludes_origin() {
@@ -28,7 +28,7 @@ fn fanout_every_to_every_excludes_origin() {
     let prop = Propagated::MediaData(a_id, data);
 
     let mut peers = vec![a, b, c];
-    str0m_sfu_kit::fanout::fanout_for_tests(&prop, &mut peers);
+    oxpulse_sfu_kit::fanout::fanout_for_tests(&prop, &mut peers);
 
     assert_eq!(peers[0].delivered_media_count(), 0, "A is origin — skipped");
     assert_eq!(peers[1].delivered_media_count(), 1, "B receives fanout");

@@ -7,10 +7,10 @@
 #   This workflow runs on tag push and publishes to crates.io.
 #
 # One-time setup (done on crates.io web UI after initial publish):
-#   https://crates.io/crates/str0m-sfu-kit/settings
+#   https://crates.io/crates/oxpulse-sfu-kit/settings
 #   Trusted Publishers -> Add GitHub publisher:
 #     - Repository owner: anatolykoptev
-#     - Repository name:  str0m-sfu-kit
+#     - Repository name:  oxpulse-sfu-kit
 #     - Workflow file:    publish.yml
 #     - Environment:      (leave blank)
 

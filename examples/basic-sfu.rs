@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 use axum::routing::get;
 use axum::Router;
-use str0m_sfu_kit::metrics::SfuMetrics;
-use str0m_sfu_kit::{udp_loop, SfuConfig};
+use oxpulse_sfu_kit::metrics::SfuMetrics;
+use oxpulse_sfu_kit::{udp_loop, SfuConfig};
 use tokio::signal;
 use tracing_subscriber::EnvFilter;
 
