@@ -58,31 +58,37 @@ pub struct SfuMediaPayload {
 
 impl SfuMediaPayload {
     /// Media stream id within the sending peer's session.
+    #[must_use]
     pub fn mid(&self) -> SfuMid {
         self.mid
     }
 
     /// Payload type (codec identifier).
+    #[must_use]
     pub fn pt(&self) -> SfuPt {
         self.pt
     }
 
     /// Simulcast layer identifier, if this stream uses simulcast.
+    #[must_use]
     pub fn rid(&self) -> Option<SfuRid> {
         self.rid
     }
 
     /// Raw RTP payload bytes (already depacketized by str0m).
+    #[must_use]
     pub fn data(&self) -> &[u8] {
         &self.data
     }
 
     /// Wall-clock instant at which the datagram was received.
+    #[must_use]
     pub fn network_time(&self) -> Instant {
         self.network_time
     }
 
     /// Whether this payload is contiguous with the previous one (no gap).
+    #[must_use]
     pub fn contiguous(&self) -> bool {
         self.contiguous
     }

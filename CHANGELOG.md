@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-04-22
+
+### Polish
+
+- `[package.metadata.docs.rs]` with `all-features = true` and `--cfg docsrs` — feature-gated public items now render with `#[doc(cfg(feature = "..."))]` badges on docs.rs.
+- Stricter crate lints via `[lints]` table: `missing_docs = "deny"`, `rust_2018_idioms` and `unreachable_pub` warn, `clippy::needless_pass_by_ref_mut` deny.
+- `#[must_use]` on builder chain methods and zero-cost public accessors. Ignoring a getter return is almost always a bug; the lint catches it at call site.
+- Empty UDP datagrams are silently dropped with `tracing::debug!` instead of panicking via `expect("non-empty datagram")`. A zero-byte datagram is always a bug somewhere, but a hot-handler panic is worse than an early return.
+- Published tarball trimmed — `docs/` and `.github/` excluded from the crate package.
+
+### Notes
+
+No API changes. This is a patch release focused on CI hygiene, docs.rs rendering, and lint posture.
+
 ## [0.3.0] - 2026-04-23
 
 ### Breaking

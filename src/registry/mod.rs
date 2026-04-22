@@ -128,6 +128,7 @@ impl Registry {
     /// audio RTP packet received from `peer_id` after parsing the audio-level
     /// RTP header extension. Only available with the `active-speaker` feature.
     #[cfg(feature = "active-speaker")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
         self.detector.record_level(peer_id, level_raw, now);
     }

@@ -57,6 +57,7 @@ impl Default for SfuRtcBuilder {
 
 impl SfuRtcBuilder {
     /// Start a new builder with str0m defaults.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: str0m::RtcConfig::default(),
@@ -68,6 +69,7 @@ impl SfuRtcBuilder {
     ///
     /// Pass a conservative value (e.g. 500_000 for 500 kbps) — GoogCC will
     /// ramp from there based on TWCC feedback.
+    #[must_use]
     pub fn enable_bwe(mut self, initial_bitrate_bps: u64) -> Self {
         self.inner = self
             .inner
@@ -76,6 +78,7 @@ impl SfuRtcBuilder {
     }
 
     /// Finish and produce an [`SfuRtc`].
+    #[must_use]
     pub fn build(self) -> SfuRtc {
         SfuRtc(self.inner.build(Instant::now()))
     }

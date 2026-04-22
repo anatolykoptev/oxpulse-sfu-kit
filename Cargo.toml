@@ -1,6 +1,6 @@
 [package]
 name = "oxpulse-sfu-kit"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.86"
 license = "MIT OR Apache-2.0"
@@ -11,10 +11,19 @@ documentation = "https://docs.rs/oxpulse-sfu-kit"
 readme = "README.md"
 keywords = ["webrtc", "sfu", "str0m", "simulcast", "fanout"]
 categories = ["multimedia", "network-programming", "asynchronous"]
+exclude = ["/docs", "/.github", "/.gitignore"]
 
 [lib]
 name = "oxpulse_sfu_kit"
 path = "src/lib.rs"
+
+[lints.rust]
+missing_docs = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+
+[lints.clippy]
+needless_pass_by_ref_mut = "deny"
 
 [features]
 default = []
@@ -53,3 +62,7 @@ required-features = ["test-utils", "metrics-prometheus"]
 name = "basic-sfu"
 path = "examples/basic-sfu.rs"
 required-features = ["active-speaker", "metrics-prometheus"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

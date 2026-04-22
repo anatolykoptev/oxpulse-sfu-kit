@@ -11,6 +11,7 @@ use crate::net::IncomingDatagram;
 
 impl Client {
     /// This subscriber's current desired simulcast layer.
+    #[must_use]
     pub fn desired_layer(&self) -> SfuRid {
         self.desired_layer
     }
@@ -31,11 +32,13 @@ impl Client {
     /// first video packet arrives. Callers that use this as the "available
     /// layers" input should fall back to the full ladder (`[LOW, MEDIUM, HIGH]`)
     /// when empty — before the first packet the full ladder is the correct assumption.
+    #[must_use]
     pub fn active_rids(&self) -> Vec<SfuRid> {
         self.active_rids.iter().copied().collect()
     }
 
     /// Number of `MediaData` events forwarded to this client after layer filtering.
+    #[must_use]
     pub fn delivered_media_count(&self) -> u64 {
         self.delivered_media.load(Ordering::Relaxed)
     }
@@ -44,11 +47,13 @@ impl Client {
     ///
     /// Only available with `test-utils` feature; used to verify skip-self semantics.
     #[cfg(any(test, feature = "test-utils"))]
+    #[must_use]
     pub fn delivered_active_speaker_count(&self) -> u64 {
         self.delivered_active_speaker.load(Ordering::Relaxed)
     }
 
     /// Whether the underlying str0m `Rtc` is still alive.
+    #[must_use]
     pub fn is_alive(&self) -> bool {
         self.rtc.is_alive()
     }
@@ -56,6 +61,7 @@ impl Client {
     /// Demux probe — returns `true` if this client owns the given datagram.
     ///
     /// Used by the registry to route incoming UDP to the correct peer.
+    #[must_use]
     pub fn accepts(&self, datagram: &IncomingDatagram) -> bool {
         let Ok(contents) = (&datagram.contents[..]).try_into() else {
             return false;

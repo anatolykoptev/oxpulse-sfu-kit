@@ -66,6 +66,7 @@ pub enum Propagated {
     /// when the `active-speaker` feature is enabled. The `peer_id` is the newly
     /// dominant peer. Fanout skips the speaker themselves (skip-self rule).
     #[cfg(feature = "active-speaker")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     ActiveSpeakerChanged {
         /// The peer that became the dominant speaker.
         peer_id: u64,

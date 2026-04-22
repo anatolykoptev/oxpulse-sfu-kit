@@ -20,4 +20,5 @@ mod prom;
 #[cfg(not(feature = "metrics-prometheus"))]
 pub use noop::SfuMetrics;
 #[cfg(feature = "metrics-prometheus")]
+#[cfg_attr(docsrs, doc(cfg(feature = "metrics-prometheus")))]
 pub use prom::SfuMetrics;

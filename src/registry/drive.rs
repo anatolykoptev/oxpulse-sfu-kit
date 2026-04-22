@@ -62,6 +62,7 @@ impl Registry {
     /// Call this on a 300ms interval (see `dominant_speaker::TICK_INTERVAL`).
     /// Only available with the `active-speaker` feature.
     #[cfg(feature = "active-speaker")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn tick_active_speaker(&mut self, now: Instant) {
         if let Some(peer_id) = self.detector.tick(now) {
             self.metrics.inc_dominant_speaker_changes();

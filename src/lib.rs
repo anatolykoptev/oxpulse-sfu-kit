@@ -76,7 +76,7 @@
 //! Published standalone for the broader Rust WebRTC ecosystem.
 
 #![forbid(unsafe_code)]
-#![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod bandwidth;
 pub mod client;
