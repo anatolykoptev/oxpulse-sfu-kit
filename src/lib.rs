@@ -89,7 +89,9 @@ pub mod media;
 pub mod metrics;
 pub mod net;
 pub mod propagate;
+pub mod raw;
 pub mod registry;
+pub mod rtc;
 pub mod rtcp_stats;
 pub mod udp_loop;
 
@@ -103,5 +105,6 @@ pub use metrics::SfuMetrics;
 pub use net::{IncomingDatagram, OutgoingDatagram, SfuProtocol};
 pub use propagate::{ClientId, Propagated};
 pub use registry::Registry;
+pub use rtc::{SfuRtc, SfuRtcBuilder};
 pub use rtcp_stats::PeerRtcpStats;
 pub use udp_loop::{run_udp_loop, serve_socket};
