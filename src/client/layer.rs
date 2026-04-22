@@ -5,7 +5,9 @@
 //! `"h"` (mid), `"f"` (full). We build the three values as `const` so they
 //! cost nothing at runtime and match byte-for-byte with `Rid::from("q"|"h"|"f")`.
 
-use str0m::media::{MediaData, Rid};
+use str0m::media::Rid;
+
+use crate::media::SfuMediaPayload;
 
 /// LiveKit low-resolution simulcast layer (`q`).
 pub const LOW: Rid = Rid::from_array(*b"q       ");
@@ -18,12 +20,12 @@ pub const HIGH: Rid = Rid::from_array(*b"f       ");
 /// layer is `desired`.
 ///
 /// Rules:
-/// - `data.rid == None` — non-simulcast publisher. Forward unconditionally.
-/// - `data.rid == Some(x)` — forward only if `x == desired`.
-pub(crate) fn matches(desired: Rid, data: &MediaData) -> bool {
-    match data.rid {
+/// - `data.rid() == None` — non-simulcast publisher. Forward unconditionally.
+/// - `data.rid() == Some(x)` — forward only if `x == desired`.
+pub(crate) fn matches(desired: Rid, data: &SfuMediaPayload) -> bool {
+    match data.rid() {
         None => true,
-        Some(rid) => rid == desired,
+        Some(rid) => rid.to_str0m() == desired,
     }
 }
 

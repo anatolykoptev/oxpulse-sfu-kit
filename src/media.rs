@@ -5,6 +5,9 @@
 
 use std::time::Instant;
 
+use str0m::format::PayloadParams;
+use str0m::media::MediaTime;
+
 use crate::ids::{SfuMid, SfuPt, SfuRid};
 
 /// Kind of a media stream (audio vs video).
@@ -38,7 +41,7 @@ impl SfuMediaKind {
 /// An inbound RTP media payload received from a peer, ready for fanout.
 ///
 /// Held by the [`Propagated::MediaData`][crate::propagate::Propagated::MediaData]
-/// variant (migration lands in Task 6).
+/// variant.
 #[derive(Debug)]
 pub struct SfuMediaPayload {
     mid: SfuMid,
@@ -47,6 +50,10 @@ pub struct SfuMediaPayload {
     data: Vec<u8>,
     network_time: Instant,
     contiguous: bool,
+    /// RTP timestamp — required by str0m's writer at the fanout write site.
+    time: MediaTime,
+    /// Negotiated codec parameters — required for `writer.match_params` at fanout.
+    params: PayloadParams,
 }
 
 impl SfuMediaPayload {
@@ -80,7 +87,31 @@ impl SfuMediaPayload {
         self.contiguous
     }
 
-    #[allow(dead_code)]
+    /// Clone the raw parts needed by str0m's fanout write path.
+    ///
+    /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
+    /// are str0m-internal. Used only inside `client::fanout`. Takes `&self` so
+    /// the fanout loop can hold `&Propagated` across multiple clients.
+    pub(crate) fn clone_write_parts(
+        &self,
+    ) -> (
+        str0m::media::Pt,
+        Instant,
+        MediaTime,
+        Option<str0m::media::Rid>,
+        Vec<u8>,
+        PayloadParams,
+    ) {
+        (
+            self.pt.to_str0m(),
+            self.network_time,
+            self.time,
+            self.rid.map(|r| r.to_str0m()),
+            self.data.clone(),
+            self.params,
+        )
+    }
+
     pub(crate) fn from_str0m(mut data: str0m::media::MediaData) -> Self {
         Self {
             mid: SfuMid::from_str0m(data.mid),
@@ -89,6 +120,8 @@ impl SfuMediaPayload {
             data: std::mem::take(&mut data.data),
             network_time: data.network_time,
             contiguous: data.contiguous,
+            time: data.time,
+            params: data.params,
         }
     }
 }

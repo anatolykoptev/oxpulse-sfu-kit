@@ -142,7 +142,7 @@ impl Client {
         if let Some(rid) = data.rid {
             self.active_rids.insert(rid);
         }
-        Propagated::MediaData(self.id, data)
+        Propagated::MediaData(self.id, crate::media::SfuMediaPayload::from_str0m(data))
     }
 
     /// Register that another client opened a track we should mirror to this peer.

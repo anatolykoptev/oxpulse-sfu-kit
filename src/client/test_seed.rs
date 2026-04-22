@@ -11,6 +11,8 @@ use str0m::media::{Frequency, MediaData, MediaKind, MediaTime, Mid, Pt, Rid};
 use str0m::rtp::{ExtensionValues, SeqNo};
 use str0m::Rtc;
 
+use crate::media::SfuMediaPayload;
+
 use super::tracks::{TrackIn, TrackInEntry};
 use super::Client;
 use crate::metrics::SfuMetrics;
@@ -67,12 +69,12 @@ pub fn seed_track_in(client: &mut Client, mid_tag: u8, kind: MediaKind) -> Arc<T
     arc
 }
 
-/// Build a synthetic `MediaData` for the given mid tag and optional RID.
+/// Build a synthetic `SfuMediaPayload` for the given mid tag and optional RID.
 ///
 /// Used by fanout / simulcast filter tests to inject packets without running
-/// RTP packetization. The M1.3 layer filter runs before any writer call, so
+/// RTP packetization. The layer filter runs before any writer call, so
 /// tests observe filter semantics purely via the `delivered_media` counter.
-pub fn make_media_data(mid_tag: u8, rid: Option<Rid>) -> MediaData {
+pub fn make_media_data(mid_tag: u8, rid: Option<Rid>) -> SfuMediaPayload {
     let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
     let pt = Pt::from(96u8);
     let seq: SeqNo = 0u64.into();
@@ -86,7 +88,7 @@ pub fn make_media_data(mid_tag: u8, rid: Option<Rid>) -> MediaData {
             format: FormatParams::default(),
         },
     );
-    MediaData {
+    let raw = MediaData {
         mid,
         pt,
         rid,
@@ -100,5 +102,6 @@ pub fn make_media_data(mid_tag: u8, rid: Option<Rid>) -> MediaData {
         contiguous: true,
         last_sender_info: None,
         audio_start_of_talk_spurt: false,
-    }
+    };
+    SfuMediaPayload::from_str0m(raw)
 }

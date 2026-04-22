@@ -7,10 +7,12 @@
 
 use std::time::{Duration, Instant};
 
-use str0m::media::{KeyframeRequest, KeyframeRequestKind, Mid, Rid};
+use str0m::media::{KeyframeRequestKind, Mid, Rid};
 
 use super::tracks::TrackOut;
 use super::Client;
+use crate::ids::SfuMid;
+use crate::keyframe::SfuKeyframeRequest;
 use crate::propagate::Propagated;
 
 /// Minimum gap between PLI/FIR requests for the same track.
@@ -45,7 +47,10 @@ impl Client {
     }
 
     /// Translate a subscriber's keyframe request to the origin client's track.
-    pub(super) fn incoming_keyframe_req(&self, mut req: KeyframeRequest) -> Propagated {
+    pub(super) fn incoming_keyframe_req(
+        &self,
+        mut req: str0m::media::KeyframeRequest,
+    ) -> Propagated {
         let Some(track_out): Option<&TrackOut> =
             self.tracks_out.iter().find(|t| t.mid() == Some(req.mid))
         else {
@@ -55,19 +60,27 @@ impl Client {
             return Propagated::Noop;
         };
         req.rid = self.chosen_rid;
-        Propagated::KeyframeRequest(self.id, req, track_in.origin, track_in.mid)
+        Propagated::KeyframeRequest(
+            self.id,
+            SfuKeyframeRequest::from_str0m(req),
+            track_in.origin,
+            SfuMid::from_str0m(track_in.mid),
+        )
     }
 
     /// Handle a propagated keyframe request: pass it through to str0m's writer
     /// if this client owns the matching incoming track.
-    pub fn handle_keyframe_request(&mut self, req: KeyframeRequest, mid_in: Mid) {
+    pub fn handle_keyframe_request(&mut self, req: SfuKeyframeRequest, mid_in: SfuMid) {
+        let mid_in = mid_in.to_str0m();
         if !self.tracks_in.iter().any(|i| i.id.mid == mid_in) {
             return;
         }
         let Some(mut writer) = self.rtc.writer(mid_in) else {
             return;
         };
-        if let Err(e) = writer.request_keyframe(req.rid, req.kind) {
+        let rid = req.rid().map(|r| r.to_str0m());
+        let kind = req.kind().to_str0m();
+        if let Err(e) = writer.request_keyframe(rid, kind) {
             tracing::info!(client = *self.id, error = ?e, "request_keyframe failed");
         }
     }

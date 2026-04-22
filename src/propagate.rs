@@ -10,10 +10,11 @@ use std::ops::Deref;
 use std::sync::Weak;
 use std::time::Instant;
 
-use str0m::media::{KeyframeRequest, MediaData, Mid};
-
 use crate::bandwidth::BandwidthEstimate;
 use crate::client::TrackIn;
+use crate::ids::SfuMid;
+use crate::keyframe::SfuKeyframeRequest;
+use crate::media::SfuMediaPayload;
 use crate::rtcp_stats::PeerRtcpStats;
 
 /// Monotonic per-process identifier for a connected peer.
@@ -51,13 +52,13 @@ pub enum Propagated {
 
     /// Media payload received by the originating client, to be forwarded to
     /// every other client (subject to the per-subscriber simulcast layer filter).
-    MediaData(ClientId, MediaData),
+    MediaData(ClientId, SfuMediaPayload),
 
     /// A keyframe request that must reach the source of the outgoing track.
     ///
     /// Fields: `(origin_of_request, request, source_client, source_mid)`.
     /// The fanout dispatcher routes this only to the `source_client`.
-    KeyframeRequest(ClientId, KeyframeRequest, ClientId, Mid),
+    KeyframeRequest(ClientId, SfuKeyframeRequest, ClientId, SfuMid),
 
     /// Dominant-speaker election changed.
     ///

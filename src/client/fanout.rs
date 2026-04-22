@@ -7,28 +7,31 @@
 
 use std::sync::atomic::Ordering;
 
-use str0m::media::{MediaData, MediaKind, Rid};
+use str0m::media::{MediaKind, Rid};
 
 use super::{layer, Client};
+use crate::media::SfuMediaPayload;
 use crate::propagate::ClientId;
 
 impl Client {
-    /// Forward a `MediaData` from `origin` out to this peer.
+    /// Forward a `SfuMediaPayload` from `origin` out to this peer.
     ///
     /// Applies the simulcast layer filter (drops packets not matching
     /// [`desired_layer`][Client::desired_layer]) and increments Prometheus
     /// counters for forwarded packets and layer selections.
-    pub fn handle_media_data_out(&mut self, origin: ClientId, data: &MediaData) {
+    pub fn handle_media_data_out(&mut self, origin: ClientId, data: &SfuMediaPayload) {
         // Drop packets that don't match the desired simulcast layer.
         if !layer::matches(self.desired_layer, data) {
             return;
         }
 
+        let data_mid = data.mid().to_str0m();
+
         // Find the matching outbound track entry.
         let matched = self.tracks_out.iter().find(|o| {
             o.track_in
                 .upgrade()
-                .filter(|i| i.origin == origin && i.mid == data.mid)
+                .filter(|i| i.origin == origin && i.mid == data_mid)
                 .is_some()
         });
 
@@ -43,8 +46,8 @@ impl Client {
         self.metrics.inc_forwarded_packets(kind_label);
 
         // Prometheus: layer_selection_total{layer} — simulcast packets only.
-        if let Some(rid) = data.rid {
-            let layer_label = rid_label(rid);
+        if let Some(rid) = data.rid() {
+            let layer_label = rid_label(rid.to_str0m());
             self.metrics.inc_layer_selection(layer_label);
         }
 
@@ -57,7 +60,7 @@ impl Client {
             .find(|o| {
                 o.track_in
                     .upgrade()
-                    .filter(|i| i.origin == origin && i.mid == data.mid)
+                    .filter(|i| i.origin == origin && i.mid == data_mid)
                     .is_some()
             })
             .and_then(|o| o.mid())
@@ -66,17 +69,19 @@ impl Client {
         };
 
         // Track the last forwarded RID so keyframe requests target the same layer.
-        if data.rid.is_some() && self.chosen_rid != data.rid {
-            self.chosen_rid = data.rid;
+        let data_rid = data.rid().map(|r| r.to_str0m());
+        if data_rid.is_some() && self.chosen_rid != data_rid {
+            self.chosen_rid = data_rid;
         }
 
         let Some(writer) = self.rtc.writer(mid) else {
             return;
         };
-        let Some(pt) = writer.match_params(data.params) else {
+        let (_pt_raw, network_time, rtp_time, _rid, payload, params) = data.clone_write_parts();
+        let Some(pt) = writer.match_params(params) else {
             return;
         };
-        if let Err(e) = writer.write(pt, data.network_time, data.time, data.data.clone()) {
+        if let Err(e) = writer.write(pt, network_time, rtp_time, payload) {
             tracing::warn!(client = *self.id, error = ?e, "writer.write failed");
             self.rtc.disconnect();
         }
