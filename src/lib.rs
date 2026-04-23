@@ -79,6 +79,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod bandwidth;
+#[cfg(feature = "pacer")]
+pub mod bwe;
 pub mod client;
 pub mod config;
 pub mod fanout;
@@ -95,6 +97,8 @@ pub mod rtcp_stats;
 pub mod udp_loop;
 
 pub use bandwidth::BandwidthEstimate;
+#[cfg(feature = "pacer")]
+pub use bwe::PacerAction;
 pub use client::Client;
 pub use config::SfuConfig;
 pub use ids::{SfuMid, SfuPt, SfuRid};

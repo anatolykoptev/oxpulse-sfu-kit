@@ -27,9 +27,10 @@ needless_pass_by_ref_mut = "deny"
 
 [features]
 default = []
-active-speaker = ["dep:dominant-speaker"]
+active-speaker  = ["dep:dominant-speaker"]
 metrics-prometheus = ["dep:prometheus"]
-test-utils = []
+pacer           = []
+test-utils      = []
 
 [dependencies]
 str0m = "0.18"
