@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-04-22
+
+### Added
+
+- **`ClientOrigin { Local, RelayFromSfu(String) }` enum** — marks a `Client` as an
+  upstream SFU relay connection. Zero cost when unused (`Local` is default).
+  `Client::set_origin(origin)` / `Client::origin()` / `Client::is_relay()`.
+
+- **`TrackIn::relay_source: bool`** — propagated at track-open time from the
+  publisher's `is_relay()` status. Enables per-track relay routing without
+  accessing the registry.
+
+- **`Propagated::UpstreamKeyframeRequest { source_relay_id, req, source_mid }`** —
+  emitted instead of `KeyframeRequest` when a subscriber requests a keyframe
+  for a relay-originated track. The application forwards this upstream via
+  signalling; no PLI/FIR is sent to the relay peer.
+
+- **`Propagated::PublisherLayerHintForUpstream { publisher_relay_id, max_rid }`** —
+  Dynacast hint emitted by `emit_publisher_layer_hints()` when the publisher is
+  a relay client. Application forwards upstream via inter-SFU signalling.
+
+- **Relay clients excluded from dominant-speaker detector** — `insert()` skips
+  `detector.add_peer()` for relay clients; `reap_dead()` skips `remove_peer()`.
+  `record_audio_level()` also ignores relay-peer levels.
+
+- `docs/ROADMAP.md` created.
+
+### Notes
+
+- No new external dependencies. No feature flag — `ClientOrigin` always compiled.
+- MSRV unchanged: Rust 1.86.
+- **Call-order contract:** `client.set_origin(ClientOrigin::RelayFromSfu(...))` must
+  be called **before** `registry.insert(client)`.
+- `serve_socket` / `run_udp_loop` drop `UpstreamKeyframeRequest` and
+  `PublisherLayerHintForUpstream` silently. Drive the registry directly to consume them.
+
+[0.5.0]: https://github.com/anatolykoptev/oxpulse-sfu-kit/releases/tag/v0.5.0
+
 ## [0.4.0] — 2026-04-22
 
 ### Added
