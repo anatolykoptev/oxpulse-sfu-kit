@@ -69,7 +69,27 @@ impl Registry {
                             stats: *stats,
                         });
                     }
-                    other => self.to_propagate.push_back(other),
+                    other => {
+                        #[cfg(feature = "active-speaker")]
+                        if let Propagated::MediaData(ref origin, ref data) = other {
+                            // RFC 6464: str0m stores audio_level as negated dBov
+                            // (0 = loudest, -127 = silent). The detector expects
+                            // 0-127 dBov (0 = loud, 127 = silent), so we negate.
+                            // MediaData originates from the current loop \, so
+                            // we check client.is_relay() directly — no second borrow needed.
+                            if let Some(raw) = data.audio_level_raw() {
+                                if !client.is_relay() {
+                                    let level = (-(raw as i16)).clamp(0, 127) as u8;
+                                    let now_ms = self
+                                        .detector_epoch
+                                        .elapsed()
+                                        .as_millis() as u64;
+                                    self.detector.record_level(**origin, level, now_ms);
+                                }
+                            }
+                        }
+                        self.to_propagate.push_back(other);
+                    }
                 }
             }
         }
@@ -122,7 +142,20 @@ impl Registry {
 
     /// Fan out every queued propagated event to the appropriate clients.
     pub fn fanout_pending(&mut self) {
+        #[cfg(feature = "kalman-bwe")]
+        let now = Instant::now();
         while let Some(p) = self.to_propagate.pop_front() {
+            #[cfg(feature = "kalman-bwe")]
+            if let Propagated::ClientBudgetHint(subscriber_id, bps) = &p {
+                self.bandwidth.record_client_hint(*subscriber_id, *bps, now);
+                continue;
+            }
+            // Update pacer-driven layer selection before forwarding the packet
+            // so subscribers receive media on their freshly-chosen layer.
+            #[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
+            if let Propagated::MediaData(origin, _) = &p {
+                self.update_pacer_layers(*origin);
+            }
             fanout(&p, &mut self.clients);
         }
     }
@@ -174,6 +207,76 @@ impl Registry {
                     publisher_id,
                     max_rid,
                 });
+            }
+        }
+    }
+}
+
+/// Default simulcast ladder used when the publisher has not yet emitted active RIDs.
+#[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
+const DEFAULT_SIMULCAST_LADDER: &[crate::ids::SfuRid] = &[
+    crate::ids::SfuRid::LOW,
+    crate::ids::SfuRid::MEDIUM,
+    crate::ids::SfuRid::HIGH,
+];
+
+#[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
+impl Registry {
+    /// For every subscriber of `origin`, read the current Kalman BWE estimate
+    /// and advance the subscriber's pacer to select the appropriate simulcast layer.
+    ///
+    /// Called on every incoming `MediaData` event from the publisher so the
+    /// pacer has fresh input every 20ms (nominal video packet cadence).
+    ///
+    /// Only available with both `kalman-bwe` and `pacer` features.
+    pub fn update_pacer_layers(&mut self, origin: crate::propagate::ClientId) {
+        let now = std::time::Instant::now();
+
+        // Snapshot publisher's active RIDs before the mutable loop (borrow checker).
+        let publisher_rids: Vec<crate::ids::SfuRid> = self
+            .clients
+            .iter()
+            .find(|c| c.id == origin)
+            .map(|c| c.active_rids())
+            .unwrap_or_default();
+
+        let _available: &[crate::ids::SfuRid] = if publisher_rids.is_empty() {
+            DEFAULT_SIMULCAST_LADDER
+        } else {
+            &publisher_rids
+        };
+
+        let subscriber_ids: Vec<crate::propagate::ClientId> = self
+            .clients
+            .iter()
+            .filter(|c| c.id != origin)
+            .map(|c| c.id)
+            .collect();
+
+        for sub_id in subscriber_ids {
+            let budget = self.bandwidth.estimate_bps(sub_id, now).unwrap_or(0);
+
+            // Mirror update_peer_bwe so Prometheus stays in sync.
+            #[cfg(feature = "metrics-prometheus")]
+            self.metrics.update_peer_bwe(*sub_id, budget);
+
+            if let Some(client) = self.clients.iter_mut().find(|c| c.id == sub_id) {
+                use crate::bwe::PacerAction;
+                match client.drive_pacer(budget) {
+                    PacerAction::GoAudioOnly => {
+                        self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                            peer_id: sub_id,
+                            audio_only: true,
+                        });
+                    }
+                    PacerAction::RestoreVideo => {
+                        self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                            peer_id: sub_id,
+                            audio_only: false,
+                        });
+                    }
+                    PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
+                }
             }
         }
     }

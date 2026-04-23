@@ -35,11 +35,15 @@ dominant-speaker detector registration.
 
 ---
 
-## CongestionControl — blocked on str0m TWCC API
+## CongestionControl — partially resolved in v0.6.0
 
-`CongestionControl` trait shipped in v0.4.0 (`src/cc.rs`) but is a dead seam.
-str0m 0.18 absorbs raw TWCC packets internally; only the finished
-`EgressBitrateEstimate` event surfaces. Plugging in SCReAM/L4S requires
-`Event::TwccFeedback { peer_id, raw_bytes }` from str0m.
+`CongestionControl` trait shipped in v0.4.0 (`src/cc.rs`) as a dead seam.
+In v0.6.0, TWCC feedback ingestion is now wired internally: `Registry::on_twcc_feedback`
+accepts `TwccFeedback` and feeds it into `BandwidthEstimator`. Applications can now
+drive Kalman delay + loss-based BWE without depending on str0m's internal GoogCC.
 
-**Upstream feature request:** file at https://github.com/algesten/str0m/issues.
+The plugin trait API (`CongestionControl` as an open seam for SCReAMv2/L4S) remains
+future work. The current `DefaultGoogCC` no-op is still in place; plugging in
+alternative CC algorithms (SCReAM, L4S) requires a future str0m TWCC raw-bytes API.
+
+**Upstream feature request:** https://github.com/algesten/str0m/issues.

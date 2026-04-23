@@ -46,6 +46,7 @@ pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
             Propagated::Noop
             | Propagated::Timeout(_)
             | Propagated::BandwidthEstimate { .. }
+            | Propagated::ClientBudgetHint(..)
             | Propagated::RtcpStats { .. }
             | Propagated::PublisherLayerHint { .. }
             | Propagated::PublisherLayerHintForUpstream { .. }

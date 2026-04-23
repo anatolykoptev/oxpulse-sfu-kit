@@ -109,7 +109,19 @@ pub enum Propagated {
         estimate: BandwidthEstimate,
     },
 
-    /// RTCP-derived stats updated for this peer.
+    /// Browser-reported bandwidth budget hint from DataChannel budget message.
+    ///
+    /// Carries the peer's self-reported link capacity ceiling. The registry feeds
+    /// this into BandwidthEstimator::record_client_hint under the kalman-bwe
+    /// feature. Always compiled (same visibility as BandwidthEstimate).
+    ClientBudgetHint(
+        /// The subscriber reporting their budget.
+        ClientId,
+        /// Budget ceiling in bits per second.
+        u64,
+    ),
+
+        /// RTCP-derived stats updated for this peer.
     ///
     /// Derived from str0m's `Event::PeerStats` (emitted ~1 Hz). Contains
     /// loss fraction and RTT; jitter is not available from the per-peer aggregate
@@ -188,6 +200,7 @@ impl Propagated {
             Propagated::Noop | Propagated::Timeout(_) => None,
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => None,
+            Propagated::ClientBudgetHint(c, _) => Some(*c),
             Propagated::BandwidthEstimate { peer_id, .. }
             | Propagated::RtcpStats { peer_id, .. } => Some(*peer_id),
             #[cfg(feature = "pacer")]

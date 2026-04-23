@@ -167,4 +167,14 @@ impl Registry {
             }
         }
     }
+
+    /// Mutable access to the `BandwidthEstimator` — for tests that need to inject
+    /// native estimates directly without simulating TWCC packets.
+    #[cfg(all(any(test, feature = "test-utils"), feature = "kalman-bwe"))]
+    #[doc(hidden)]
+    pub fn bandwidth_mut_for_tests(
+        &mut self,
+    ) -> &mut crate::bwe::estimator::BandwidthEstimator {
+        &mut self.bandwidth
+    }
 }
