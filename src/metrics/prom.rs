@@ -37,6 +37,12 @@ pub struct SfuMetrics {
     pub peer_rtt_ms: GaugeVec,
     /// Per-peer egress bandwidth estimate in bits/s (from BWE), label: `peer_id`.
     pub bandwidth_estimate_bps: GaugeVec,
+    /// Per-peer immediate-window speaker activity score, label: `peer_id`.
+    pub speaker_immediate: GaugeVec,
+    /// Per-peer medium-window speaker activity score, label: `peer_id`.
+    pub speaker_medium: GaugeVec,
+    /// Per-peer long-window speaker activity score, label: `peer_id`.
+    pub speaker_long: GaugeVec,
 }
 
 impl SfuMetrics {
@@ -123,6 +129,33 @@ impl SfuMetrics {
         )
         .context("bandwidth_estimate_bps")?);
 
+        let speaker_immediate = reg!(GaugeVec::new(
+            Opts::new(
+                "speaker_immediate_score",
+                "Per-peer immediate-window speaker activity score"
+            ),
+            &["peer_id"],
+        )
+        .context("speaker_immediate_score")?);
+
+        let speaker_medium = reg!(GaugeVec::new(
+            Opts::new(
+                "speaker_medium_score",
+                "Per-peer medium-window speaker activity score"
+            ),
+            &["peer_id"],
+        )
+        .context("speaker_medium_score")?);
+
+        let speaker_long = reg!(GaugeVec::new(
+            Opts::new(
+                "speaker_long_score",
+                "Per-peer long-window speaker activity score"
+            ),
+            &["peer_id"],
+        )
+        .context("speaker_long_score")?);
+
         Ok(Self {
             registry: Arc::new(registry),
             active_participants,
@@ -135,6 +168,9 @@ impl SfuMetrics {
             peer_jitter_ms,
             peer_rtt_ms,
             bandwidth_estimate_bps,
+            speaker_immediate,
+            speaker_medium,
+            speaker_long,
         })
     }
 
@@ -198,6 +234,21 @@ impl SfuMetrics {
             .set(bps as f64);
     }
 
+    #[cfg(feature = "active-speaker")]
+    pub(crate) fn update_peer_speaker_scores(
+        &self,
+        peer_id: u64,
+        immediate: f64,
+        medium: f64,
+        long_score: f64,
+    ) {
+        let label = peer_id.to_string();
+        let lv = &[label.as_str()];
+        self.speaker_immediate.with_label_values(lv).set(immediate);
+        self.speaker_medium.with_label_values(lv).set(medium);
+        self.speaker_long.with_label_values(lv).set(long_score);
+    }
+
     /// Remove all per-peer label series for a disconnected peer.
     ///
     /// Safe to call with an unknown `peer_id` — `remove_label_values` returns
@@ -209,6 +260,9 @@ impl SfuMetrics {
         let _ = self.peer_rtt_ms.remove_label_values(lv);
         let _ = self.peer_jitter_ms.remove_label_values(lv);
         let _ = self.bandwidth_estimate_bps.remove_label_values(lv);
+        let _ = self.speaker_immediate.remove_label_values(lv);
+        let _ = self.speaker_medium.remove_label_values(lv);
+        let _ = self.speaker_long.remove_label_values(lv);
     }
 }
 

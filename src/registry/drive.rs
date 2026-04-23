@@ -93,6 +93,18 @@ impl Registry {
         }
     }
 
+    /// Update Prometheus gauges with current per-peer speaker activity scores.
+    ///
+    /// Call this periodically (e.g. on the same 300ms tick as `tick_active_speaker`).
+    /// Only available with both `active-speaker` and `metrics-prometheus` features.
+    #[cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))))]
+    pub fn tick_speaker_scores(&mut self) {
+        for (peer_id, imm, med, lng) in self.detector.peer_scores() {
+            self.metrics.update_peer_speaker_scores(peer_id, imm, med, lng);
+        }
+    }
+
     /// Drive the session clock forward on every client.
     pub fn tick(&mut self, now: Instant) {
         for client in self.clients.iter_mut() {

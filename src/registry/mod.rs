@@ -132,4 +132,18 @@ impl Registry {
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
         self.detector.record_level(peer_id, level_raw, now);
     }
+
+    /// Return raw activity scores for all non-paused peers in the room.
+    ///
+    /// Each tuple is `(peer_id, immediate_score, medium_score, long_score)`.
+    /// Scores are the raw log-domain values from the Volfin & Cohen algorithm.
+    /// Useful for debugging speaker detection or building custom UIs.
+    ///
+    /// Only available with the `active-speaker` feature.
+    #[cfg(feature = "active-speaker")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
+    #[must_use]
+    pub fn peer_audio_scores(&self) -> Vec<(u64, f64, f64, f64)> {
+        self.detector.peer_scores()
+    }
 }

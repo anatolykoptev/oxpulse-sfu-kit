@@ -126,6 +126,9 @@ where
                 // active-speaker feature: advance the dominant-speaker detector.
                 #[cfg(feature = "active-speaker")]
                 registry.tick_active_speaker(Instant::now());
+                // Update per-peer speaker score Prometheus gauges.
+                #[cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))]
+                registry.tick_speaker_scores();
                 // Without the feature, just tick str0m's session clock.
                 #[cfg(not(feature = "active-speaker"))]
                 registry.tick(Instant::now());
