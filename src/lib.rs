@@ -99,6 +99,7 @@ pub mod registry;
 pub mod rtc;
 pub mod rtcp_stats;
 pub mod layer_selector;
+pub mod sframe;
 pub mod udp_loop;
 
 pub use bandwidth::BandwidthEstimate;
@@ -120,4 +121,5 @@ pub use registry::Registry;
 pub use rtc::{SfuRtc, SfuRtcBuilder};
 pub use rtcp_stats::PeerRtcpStats;
 pub use layer_selector::{BestFitSelector, LayerSelector};
+pub use sframe::KeyEpoch;
 pub use udp_loop::{run_udp_loop, serve_socket};

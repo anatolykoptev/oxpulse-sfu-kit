@@ -161,3 +161,28 @@ fn av1_dd_max_temporal_layer_accessor_exists() {
     client.set_max_temporal_layer(1);
     assert_eq!(client.max_temporal_layer(), 1);
 }
+
+#[test]
+fn propagated_publisher_layer_hint_variant_exists() {
+    use oxpulse_sfu_kit::{ClientId, Propagated, SfuRid};
+    let _ = Propagated::PublisherLayerHint {
+        publisher_id: ClientId(1),
+        max_rid: SfuRid::MEDIUM,
+    };
+}
+
+#[test]
+fn propagated_audio_codec_hint_variant_exists() {
+    use oxpulse_sfu_kit::{ClientId, Propagated};
+    let _ = Propagated::AudioCodecHint {
+        peer_id: ClientId(1),
+        opus_red: true,
+        opus_dred: false,
+    };
+}
+
+#[test]
+fn key_epoch_accessible() {
+    use oxpulse_sfu_kit::KeyEpoch;
+    assert_eq!(KeyEpoch::new(7).as_u64(), 7);
+}

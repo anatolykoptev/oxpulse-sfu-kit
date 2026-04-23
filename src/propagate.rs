@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use crate::bandwidth::BandwidthEstimate;
 use crate::client::TrackIn;
-use crate::ids::SfuMid;
+use crate::ids::{SfuMid, SfuRid};
 use crate::keyframe::SfuKeyframeRequest;
 use crate::media::SfuMediaPayload;
 use crate::rtcp_stats::PeerRtcpStats;
@@ -109,6 +109,32 @@ pub enum Propagated {
         /// `true` = entered audio-only; `false` = video restored.
         audio_only: bool,
     },
+    /// Hint to the publisher that they may stop encoding layers above `max_rid`.
+    ///
+    /// Emitted by [`Registry::emit_publisher_layer_hints`] when the maximum
+    /// desired layer across all subscribers changes. The application should relay
+    /// this to the publisher via RTCP or signalling.
+    PublisherLayerHint {
+        /// The publisher whose encoding may be reduced.
+        publisher_id: ClientId,
+        /// Highest simulcast layer any subscriber currently wants.
+        max_rid: SfuRid,
+    },
+
+    /// Subscriber capability hint for Opus audio codec redundancy.
+    ///
+    /// Emit to the application signalling layer to negotiate `red/48000/2` in
+    /// the publisher's SDP offer, or relay via a custom data-channel protocol.
+    /// The SFU does not inject RED — it is a sender-side concern.
+    AudioCodecHint {
+        /// The subscriber expressing the preference.
+        peer_id: ClientId,
+        /// Subscriber can decode Opus RFC 2198 RED (`red/48000/2` in SDP).
+        opus_red: bool,
+        /// Subscriber can decode Opus DRED (Deep REDundancy — libopus 0.9+).
+        opus_dred: bool,
+    },
+
 }
 
 impl Propagated {
@@ -129,6 +155,8 @@ impl Propagated {
             | Propagated::RtcpStats { peer_id, .. } => Some(*peer_id),
             #[cfg(feature = "pacer")]
             Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
+            Propagated::PublisherLayerHint { publisher_id, .. } => Some(*publisher_id),
+            Propagated::AudioCodecHint { peer_id, .. } => Some(*peer_id),
         }
     }
 }

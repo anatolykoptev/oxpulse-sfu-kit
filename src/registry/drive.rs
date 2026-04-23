@@ -6,7 +6,8 @@
 use std::time::Instant;
 
 use crate::fanout::fanout;
-use crate::propagate::Propagated;
+use crate::ids::SfuRid;
+use crate::propagate::{ClientId, Propagated};
 
 use super::Registry;
 
@@ -101,6 +102,35 @@ impl Registry {
     pub fn fanout_pending(&mut self) {
         while let Some(p) = self.to_propagate.pop_front() {
             fanout(&p, &mut self.clients);
+        }
+    }
+    /// Compute the maximum desired simulcast layer across all subscribers per publisher,
+    /// and enqueue [`Propagated::PublisherLayerHint`] when the max changes.
+    ///
+    /// Call after [`fanout_pending`][Self::fanout_pending] on any tick where
+    /// subscriber desired layers may have changed.
+    pub fn emit_publisher_layer_hints(&mut self) {
+        use std::collections::HashMap;
+        use crate::client::layer;
+
+        let mut max_per_publisher: HashMap<ClientId, SfuRid> = HashMap::new();
+        for subscriber in &self.clients {
+            let sub_desired = subscriber.desired_layer();
+            for track_out in &subscriber.tracks_out {
+                if let Some(track_in) = track_out.track_in.upgrade() {
+                    let publisher_id = track_in.origin;
+                    let entry = max_per_publisher.entry(publisher_id).or_insert(layer::LOW);
+                    let rank = |r: SfuRid| -> u8 {
+                        if r == SfuRid::LOW { 0 } else if r == SfuRid::MEDIUM { 1 } else { 2 }
+                    };
+                    if rank(sub_desired) > rank(*entry) {
+                        *entry = sub_desired;
+                    }
+                }
+            }
+        }
+        for (publisher_id, max_rid) in max_per_publisher {
+            self.to_propagate.push_back(Propagated::PublisherLayerHint { publisher_id, max_rid });
         }
     }
 }
