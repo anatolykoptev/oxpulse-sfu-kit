@@ -21,23 +21,21 @@ fn active_speaker_dominance_and_hysteresis_and_skip_self() {
     registry.insert(b);
     registry.insert(c);
 
-    // Bootstrap: first tick elects lowest peer_id (BTreeMap order).
+    // Bootstrap: first tick elects some peer (HashMap internals — order not deterministic).
     let t0 = Instant::now();
     registry.force_active_speaker_tick_for_tests(t0);
-    assert_eq!(
-        registry.current_active_speaker(),
-        Some(1),
-        "bootstrap → peer 1"
-    );
-    assert_eq!(registry.delivered_active_speaker_count(0), 0, "A skip-self");
-    assert!(
-        registry.delivered_active_speaker_count(1) >= 1,
-        "B notified"
-    );
-    assert!(
-        registry.delivered_active_speaker_count(2) >= 1,
-        "C notified"
-    );
+    let winner = registry.current_active_speaker().expect("bootstrap elected someone");
+    assert!([1u64, 2, 3].contains(&winner), "bootstrap picked a valid peer");
+    let winner_idx = (winner - 1) as usize;
+    assert_eq!(registry.delivered_active_speaker_count(winner_idx), 0, "winner skip-self");
+    for idx in 0..3 {
+        if idx != winner_idx {
+            assert!(
+                registry.delivered_active_speaker_count(idx) >= 1,
+                "non-winner notified"
+            );
+        }
+    }
 
     // Hysteresis: 3 more ticks without audio → incumbent persists.
     for step in 1..=3 {
@@ -45,7 +43,7 @@ fn active_speaker_dominance_and_hysteresis_and_skip_self() {
     }
     assert_eq!(
         registry.current_active_speaker(),
-        Some(1),
+        Some(winner),
         "incumbent holds"
     );
 

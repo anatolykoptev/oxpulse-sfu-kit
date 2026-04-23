@@ -783,7 +783,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "oxpulse-sfu-kit"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1080,9 +1080,9 @@ dependencies = [
 
 [[package]]
 name = "rust-dominant-speaker"
-version = "0.1.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d2d2d5d9f0480dce319960faadefe4ba935efbae11c129477e3eebe65b8dc49"
+checksum = "df704080ab598aa8831c46d9f6159e5f9ca8a42d404eb6e7b120ead8ebfbf71b"
 
 [[package]]
 name = "rustc-hash"

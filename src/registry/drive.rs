@@ -84,10 +84,10 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn tick_active_speaker(&mut self, now: Instant) {
-        if let Some(peer_id) = self.detector.tick(now) {
+        if let Some(change) = self.detector.tick(now) {
             self.metrics.inc_dominant_speaker_changes();
             self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id });
+                .push_back(Propagated::ActiveSpeakerChanged { peer_id: change.peer_id });
         }
     }
 

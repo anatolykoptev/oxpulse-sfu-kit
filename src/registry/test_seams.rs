@@ -57,20 +57,20 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     pub fn force_active_speaker_tick_for_tests(&mut self, now: Instant) -> Option<u64> {
         let changed = self.detector.tick(now);
-        if let Some(peer_id) = changed {
+        if let Some(ref change) = changed {
             self.metrics.inc_dominant_speaker_changes();
             self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id });
+                .push_back(Propagated::ActiveSpeakerChanged { peer_id: change.peer_id });
         }
         self.fanout_pending();
-        changed
+        changed.map(|c| c.peer_id)
     }
 
     /// Read the detector's current dominant peer.
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn current_active_speaker(&self) -> Option<u64> {
-        self.detector.current_dominant()
+        self.detector.current_dominant().copied()
     }
 
     /// Force-disconnect a client by id so the next `reap_dead` pass drops it.
