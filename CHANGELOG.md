@@ -12,39 +12,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`pacer` feature** — `SubscriberPacer` with LiveKit-style 3-consecutive-upgrade /
   instant-downgrade BWE hysteresis. Egress bandwidth estimates from str0m GoogCC
   automatically adjust `desired_layer` per subscriber. New `PacerAction` enum.
-  New `Propagated::AudioOnlyMode { peer_id, audio_only }` emitted at 80 kbps threshold.
-  `Registry::drive_pacer_for_tests()` (gated `test-utils + pacer`).
+  `Propagated::AudioOnlyMode { peer_id, audio_only }` emitted at 80 kbps threshold.
+  `Registry::emit_publisher_layer_hints()` auto-fires on the 300 ms speaker tick.
+  `Registry::drive_pacer_for_tests()` available under `test-utils + pacer`.
 
 - **`av1-dd` feature** — `av1::dependency_descriptor::parse(&[u8]) -> Option<Av1DdInfo>`
   extracts `temporal_id` / `spatial_id` from the AV1 DD RTP header extension (L3T3
-  template layout). `SfuMediaPayload::av1_dd()` accessor. `Client::set_max_temporal_layer(u8)`
-  per-subscriber cap; packets with `temporal_id > cap` are dropped at fanout.
-  Note: `av1_dd()` returns `None` on str0m 0.18 (DD not yet in `ExtensionValues`);
-  the parser is ready for when str0m surfaces it.
+  template layout, templates 0–8). `SfuMediaPayload::av1_dd()` accessor.
+  `Client::set_max_temporal_layer(u8)` per-subscriber cap; packets with
+  `temporal_id > cap` are dropped at fanout. Note: `av1_dd()` returns `None` on
+  str0m 0.18 (DD not yet in `ExtensionValues`); the parser activates when str0m
+  surfaces it.
+
+- **`vfm` feature** — RFC 9626 Video Frame Marking RTP header extension parser for
+  H.264, VP9, and HEVC. `FrameMarkingInfo { start_of_frame, end_of_frame, independent,
+  discardable, base_layer_sync, temporal_id }`. `SfuMediaPayload::vfm_frame_marking()`
+  accessor. `Client::set_max_vfm_temporal_layer(u8)` per-subscriber temporal-layer cap.
 
 - **`LayerSelector` trait + `BestFitSelector`** — centralises the desired-layer +
-  active-rids forwarding decision; default impl clamps to best available RID ≤ desired.
+  active-rids forwarding decision. `BestFitSelector` is now wired into
+  `handle_media_data_out`: picks the highest active RID ≤ `desired_layer`, falling
+  back to `desired` when `active_rids` is empty (backward-compatible).
 
-- **`Propagated::PublisherLayerHint { publisher_id, max_rid }`** — Dynacast-style hint
-  emitted by `Registry::emit_publisher_layer_hints()` when the maximum desired layer
-  across all subscribers changes. Application should relay to publisher via RTCP or
-  signalling.
+- **`Propagated::PublisherLayerHint { publisher_id, max_rid }`** — Dynacast-style
+  hint emitted by `Registry::emit_publisher_layer_hints()` when the maximum desired
+  layer across all subscribers changes. Application should relay to publisher via
+  RTCP or signalling.
 
 - **`Propagated::AudioCodecHint { peer_id, opus_red, opus_dred }`** — signal that a
-  subscriber supports Opus RED (RFC 2198) or DRED; application uses this to negotiate
-  codec preferences in SDP or via data-channel.
+  subscriber supports Opus RED (RFC 2198) or DRED; relay through signalling to
+  negotiate codec preferences in SDP.
 
-- **`KeyEpoch`** newtype in the `sframe` module — forwarding seam for the SFrame
+- **`Propagated::ActiveSpeakerChanged`** gains `confidence: f64` — medium-window
+  C2 log-ratio margin from `SpeakerChange`. `0.0` = bootstrap election; values
+  above `2.0` indicate a confident, contested win. Consumers may delay UI updates
+  on low-confidence switches.
+
+- **`Registry::peer_audio_scores() -> Vec<(u64, f64, f64, f64)>`** — raw
+  `(peer_id, immediate, medium, long)` activity scores from the Volfin & Cohen
+  detector. Under `metrics-prometheus + active-speaker`: three new Prometheus gauges
+  `sfu_speaker_{immediate,medium,long}_score{peer_id}`, cleaned up on disconnect.
+
+- **`CongestionControl` trait** in `crate::cc` — plugin seam for alternative
+  congestion-control algorithms (SCReAMv2, L4S). Default impl `DefaultGoogCC` is a
+  no-op; str0m's built-in GoogCC continues to drive `BandwidthEstimate` events.
+  Full integration (raw TWCC byte access) requires a future str0m API addition.
+
+- **`KeyEpoch`** newtype in `crate::sframe` — forwarding seam for the SFrame
   key-epoch RTP header extension (RFC 9605).
 
-- `Registry::emit_publisher_layer_hints()` — compute and enqueue Dynacast hints
-  based on current subscriber desired layers per publisher.
+- `Registry::emit_publisher_layer_hints()` — computes and enqueues
+  `PublisherLayerHint` events on each tick.
+
+- **Audio quality guidance** added to README: RNNoise / ten-vad publisher-side noise
+  filtering, Opus DRED pass-through, SFrame E2E encryption architecture.
+
+### Dependencies
+
+- `rust-dominant-speaker` bumped `0.1.1` → `0.2` (v0.2.1). Breaking API changes
+  adapted internally: `tick()` → `SpeakerChange`, `remove_peer(&)`,
+  `current_dominant().copied()`. Key v0.2.x additions: `current_top_k(k)`,
+  `peer_scores()`, `serde` feature, `SpeakerChange.c2_margin`.
+  Two numerics bugfixes: `binomial_coefficient` and `compute_activity_score`
+  underflow panic under non-default `DetectorConfig`.
 
 ### Notes
 
-- Zero new external dependencies. All math is `u64` arithmetic or bit manipulation.
+- Zero new external dependencies beyond `rust-dominant-speaker` bump.
 - MSRV unchanged: Rust 1.86.
-- The `pacer` and `av1-dd` features are independent; both can be enabled simultaneously.
+- `pacer`, `av1-dd`, `vfm` features are independent; all may be enabled simultaneously.
+- All three temporal-layer drop gates (`av1-dd`, `vfm`) gate on their respective
+  feature flags and default to `u8::MAX` (pass-through) when not set.
 
 ## [0.3.1] - 2026-04-22
 
