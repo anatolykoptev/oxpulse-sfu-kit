@@ -182,3 +182,10 @@ async fn shutdown_stops_metrics_server() {
         Err(_) => panic!("scrape timed out instead of failing fast"),
     }
 }
+
+#[cfg(all(feature = "active-speaker", feature = "test-utils"))]
+#[test]
+fn peer_audio_scores_returns_empty_for_empty_room() {
+    let registry = oxpulse_sfu_kit::Registry::new_for_tests();
+    assert!(registry.peer_audio_scores().is_empty());
+}

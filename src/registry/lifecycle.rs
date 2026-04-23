@@ -33,7 +33,12 @@ impl Registry {
             let alive = c.is_alive();
             if !alive {
                 #[cfg(feature = "active-speaker")]
-                detector.remove_peer(*c.id);
+                {
+                    // Only remove if it was registered — relay clients are not in the detector.
+                    if !c.is_relay() {
+                        detector.remove_peer(&*c.id);
+                    }
+                }
                 metrics.inc_client_disconnect();
                 metrics.dec_active_participants();
                 metrics.reap_dead_peer(*c.id);

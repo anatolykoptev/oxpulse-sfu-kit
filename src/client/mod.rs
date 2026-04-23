@@ -44,6 +44,8 @@ use tracks::{TrackInEntry, TrackOut, TrackOutState};
 pub struct Client {
     /// Process-unique identifier for this peer.
     pub id: ClientId,
+    /// Whether this client is a local peer or an upstream SFU relay.
+    pub(crate) origin: crate::origin::ClientOrigin,
     pub(crate) rtc: Rtc,
     pub(crate) tracks_in: Vec<TrackInEntry>,
     pub(crate) tracks_out: Vec<TrackOut>,
@@ -63,6 +65,15 @@ pub struct Client {
     /// `ActiveSpeakerChanged` deliveries (skip-self check in tests).
     #[cfg(any(test, feature = "test-utils"))]
     pub(crate) delivered_active_speaker: AtomicU64,
+    /// Per-subscriber hysteretic layer pacer driven from egress BWE readings.
+    #[cfg(feature = "pacer")]
+    pub(crate) pacer: crate::bwe::SubscriberPacer,
+    /// Maximum AV1 temporal layer to forward to this subscriber (default = all).
+    #[cfg(feature = "av1-dd")]
+    pub(crate) max_temporal_layer: u8,
+    /// Maximum RFC 9626 temporal layer to forward to this subscriber (default = all).
+    #[cfg(feature = "vfm")]
+    pub(crate) max_vfm_temporal_layer: u8,
 }
 
 impl Client {
@@ -154,6 +165,7 @@ impl Client {
                 origin: self.id,
                 mid,
                 kind,
+                relay_source: self.is_relay(),
             }),
             last_keyframe_request: None,
         };

@@ -22,6 +22,43 @@ simulcast layer forwarding.
 - **Optional**: dominant speaker detection (`active-speaker` feature)
 - **Optional**: Prometheus metrics (`metrics-prometheus` feature)
 
+## Audio quality guidance
+
+### Publisher-side noise filtering
+
+The dominant-speaker detector reads RFC 6464 audio-level RTP header extensions.
+For cleaner speaker elections, publishers should filter audio through a noise
+suppressor before computing the level:
+
+- **RNNoise** (`xiph/rnnoise`, BSD-3-Clause) — DSP/DNN hybrid, runs on mobile,
+  produces clean levels even in ambient noise.
+- **ten-vad** (`TEN-framework/ten-vad`, MIT) — small CPU-friendly VAD alternative.
+
+Neither is a dependency of this kit. Wire them at the publisher (browser/native app)
+before the RFC 6464 level is computed.
+
+### Opus DRED (Deep REDundancy)
+
+Opus DRED (`opus-dred` in libopus ≥ 1.4, shipping in recent Chromium) embeds a
+neural-decoded redundant stream at ≈1 kbps overhead. The SFU forwards it transparently
+— no kit changes required. Receivers with libopus ≥ 1.4 automatically decode DRED
+for packet-loss concealment up to ≈1 second lookback.
+
+To signal DRED capability between peers, emit
+[`Propagated::AudioCodecHint`][crate::propagate::Propagated::AudioCodecHint] with
+`opus_dred: true` and relay it through your signalling layer.
+
+### End-to-end encryption (SFrame)
+
+The kit forwards RTP payloads opaquely — SFrame (RFC 9605) encrypted frames pass
+through unchanged. Use [`KeyEpoch`][crate::sframe::KeyEpoch] to forward the key-epoch
+RTP header extension so subscribers can identify the correct decryption key.
+
+Key distribution (MLS RFC 9420 or Double Ratchet) is your signalling layer's
+responsibility. Reference implementations:
+- `livekit/client-sdk-js` `src/e2ee/` (Apache-2.0)
+- `element-hq/element-call` `matrixKeyProvider.ts` (AGPL-3.0)
+
 ## Not included (by design)
 
 - Signaling (bring your own — WebSocket, HTTP, gRPC)

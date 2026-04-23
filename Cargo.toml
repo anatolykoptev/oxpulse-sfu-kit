@@ -1,6 +1,6 @@
 [package]
 name = "oxpulse-sfu-kit"
-version = "0.3.1"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.86"
 license = "MIT OR Apache-2.0"
@@ -27,9 +27,12 @@ needless_pass_by_ref_mut = "deny"
 
 [features]
 default = []
-active-speaker = ["dep:dominant-speaker"]
+active-speaker  = ["dep:dominant-speaker"]
 metrics-prometheus = ["dep:prometheus"]
-test-utils = []
+pacer           = []
+av1-dd          = []
+vfm             = []
+test-utils      = []
 
 [dependencies]
 str0m = "0.18"
@@ -37,7 +40,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "
 tracing = "0.1"
 anyhow = "1"
 
-dominant-speaker = { package = "rust-dominant-speaker", version = "0.1.1", optional = true }
+dominant-speaker = { package = "rust-dominant-speaker", version = "0.3", optional = true }
 prometheus = { version = "0.13", default-features = false, optional = true }
 
 [dev-dependencies]

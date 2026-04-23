@@ -60,6 +60,16 @@ impl Client {
             return Propagated::Noop;
         };
         req.rid = self.chosen_rid;
+        if track_in.relay_source {
+            // The publisher is on another SFU edge — we cannot send PLI/FIR to
+            // it because it has no inbound negotiation for this direction.
+            // Emit UpstreamKeyframeRequest for the application to relay upstream.
+            return Propagated::UpstreamKeyframeRequest {
+                source_relay_id: track_in.origin,
+                req: SfuKeyframeRequest::from_str0m(req),
+                source_mid: SfuMid::from_str0m(track_in.mid),
+            };
+        }
         Propagated::KeyframeRequest(
             self.id,
             SfuKeyframeRequest::from_str0m(req),
@@ -83,5 +93,16 @@ impl Client {
         if let Err(e) = writer.request_keyframe(rid, kind) {
             tracing::info!(client = *self.id, error = ?e, "request_keyframe failed");
         }
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+impl Client {
+    /// Expose `incoming_keyframe_req` for integration tests.
+    pub fn incoming_keyframe_req_for_tests(
+        &self,
+        req: str0m::media::KeyframeRequest,
+    ) -> crate::propagate::Propagated {
+        self.incoming_keyframe_req(req)
     }
 }

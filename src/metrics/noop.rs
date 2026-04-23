@@ -30,6 +30,15 @@ impl SfuMetrics {
     ) {
     }
     pub(crate) fn update_peer_bwe(&self, _peer_id: u64, _bps: u64) {}
+    #[cfg(feature = "active-speaker")]
+    pub(crate) fn update_peer_speaker_scores(
+        &self,
+        _peer_id: u64,
+        _immediate: f64,
+        _medium: f64,
+        _long_score: f64,
+    ) {
+    }
     /// Noop cardinality reaper — no-op when Prometheus is disabled.
     pub fn reap_dead_peer(&self, _peer_id: u64) {}
 }

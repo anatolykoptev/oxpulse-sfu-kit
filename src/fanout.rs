@@ -17,7 +17,7 @@ use crate::propagate::Propagated;
 /// on the public API surface.
 pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
     #[cfg(feature = "active-speaker")]
-    if let Propagated::ActiveSpeakerChanged { peer_id } = p {
+    if let Propagated::ActiveSpeakerChanged { peer_id, .. } = p {
         for client in clients.iter_mut() {
             if *client.id == *peer_id {
                 // Skip-self: the speaker doesn't receive their own dominance event.
@@ -46,9 +46,15 @@ pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
             Propagated::Noop
             | Propagated::Timeout(_)
             | Propagated::BandwidthEstimate { .. }
-            | Propagated::RtcpStats { .. } => {}
+            | Propagated::RtcpStats { .. }
+            | Propagated::PublisherLayerHint { .. }
+            | Propagated::PublisherLayerHintForUpstream { .. }
+            | Propagated::AudioCodecHint { .. }
+            | Propagated::UpstreamKeyframeRequest { .. } => {}
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => {}
+            #[cfg(feature = "pacer")]
+            Propagated::AudioOnlyMode { .. } => {}
         }
     }
 }

@@ -47,7 +47,12 @@ impl Registry {
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn inject_audio_level_for_tests(&mut self, peer_id: u64, level: u8, now: Instant) {
-        self.detector.record_level(peer_id, level, now);
+        // Mirror the production guard: relay clients are excluded from the detector.
+        if self.clients.iter().any(|c| *c.id == peer_id && c.is_relay()) {
+            return;
+        }
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        self.detector.record_level(peer_id, level, now_ms);
     }
 
     /// Force an ASO tick and drain any fanout the detector queued.
@@ -56,21 +61,24 @@ impl Registry {
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn force_active_speaker_tick_for_tests(&mut self, now: Instant) -> Option<u64> {
-        let changed = self.detector.tick(now);
-        if let Some(peer_id) = changed {
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        let changed = self.detector.tick(now_ms);
+        if let Some(ref change) = changed {
             self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id });
+            self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {
+                peer_id: change.peer_id,
+                confidence: change.c2_margin,
+            });
         }
         self.fanout_pending();
-        changed
+        changed.map(|c| c.peer_id)
     }
 
     /// Read the detector's current dominant peer.
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn current_active_speaker(&self) -> Option<u64> {
-        self.detector.current_dominant()
+        self.detector.current_dominant().copied()
     }
 
     /// Force-disconnect a client by id so the next `reap_dead` pass drops it.
@@ -85,5 +93,74 @@ impl Registry {
     #[doc(hidden)]
     pub fn reap_dead_for_tests(&mut self) {
         self.reap_dead();
+    }
+
+    /// Wire subscriber at `sub_idx` to publisher at `pub_idx` for the track tagged
+    /// with `mid_tag` - forcing the track_out into Open state.
+    ///
+    /// Must be called after both clients are inserted.
+    #[doc(hidden)]
+    pub fn wire_track_for_tests(&mut self, sub_idx: usize, pub_idx: usize, mid_tag: u8) {
+        use str0m::media::Mid;
+        let mid = Mid::from(&*format!("m{mid_tag}"));
+        let track_arc = self.clients[pub_idx]
+            .tracks_in
+            .iter()
+            .find(|e| e.id.mid == mid)
+            .map(|e| e.id.clone())
+            .expect("publisher track not found");
+        self.clients[sub_idx].handle_track_open(std::sync::Arc::downgrade(&track_arc));
+        for track_out in self.clients[sub_idx].tracks_out.iter_mut() {
+            if track_out.track_in.upgrade().as_deref().map(|t| t.mid) == Some(mid) {
+                track_out.state = crate::client::tracks::TrackOutState::Open(mid);
+                return;
+            }
+        }
+    }
+
+    /// Drain the registry's propagation queue and return all events.
+    ///
+    /// Used to inspect what `emit_publisher_layer_hints` produces without
+    /// running `fanout_pending`.
+    #[doc(hidden)]
+    pub fn drain_propagated_for_tests(&mut self) -> Vec<crate::propagate::Propagated> {
+        self.to_propagate.drain(..).collect()
+    }
+
+
+    /// Mutable access to the clients slice — for tests that need to call
+    /// per-client methods (like `incoming_keyframe_req_for_tests`) without
+    /// running the full poll loop.
+    #[doc(hidden)]
+    pub fn clients_mut_for_tests(&mut self) -> &mut [crate::client::Client] {
+        &mut self.clients
+    }
+
+    /// Drive a subscriber's pacer directly --- for tests that cannot simulate TWCC.
+    #[cfg(all(any(test, feature = "test-utils"), feature = "pacer"))]
+    #[doc(hidden)]
+    pub fn drive_pacer_for_tests(
+        &mut self,
+        peer_id: crate::propagate::ClientId,
+        bps: u64,
+    ) {
+        use crate::bwe::PacerAction;
+        if let Some(client) = self.clients.iter_mut().find(|c| c.id == peer_id) {
+            match client.drive_pacer(bps) {
+                PacerAction::GoAudioOnly => {
+                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                        peer_id,
+                        audio_only: true,
+                    });
+                }
+                PacerAction::RestoreVideo => {
+                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                        peer_id,
+                        audio_only: false,
+                    });
+                }
+                _ => {}
+            }
+        }
     }
 }

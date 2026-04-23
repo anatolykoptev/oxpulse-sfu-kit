@@ -6,7 +6,8 @@
 use std::time::Instant;
 
 use crate::fanout::fanout;
-use crate::propagate::Propagated;
+use crate::ids::SfuRid;
+use crate::propagate::{ClientId, Propagated};
 
 use super::Registry;
 
@@ -36,6 +37,25 @@ impl Registry {
                             peer_id,
                             estimate: *estimate,
                         });
+                        #[cfg(feature = "pacer")]
+                        {
+                            use crate::bwe::PacerAction;
+                            match client.drive_pacer(estimate.bps) {
+                                PacerAction::GoAudioOnly => {
+                                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                                        peer_id,
+                                        audio_only: true,
+                                    });
+                                }
+                                PacerAction::RestoreVideo => {
+                                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                                        peer_id,
+                                        audio_only: false,
+                                    });
+                                }
+                                PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
+                            }
+                        }
                     }
                     Propagated::RtcpStats { peer_id, ref stats } => {
                         self.metrics.update_peer_rtcp(
@@ -64,10 +84,25 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn tick_active_speaker(&mut self, now: Instant) {
-        if let Some(peer_id) = self.detector.tick(now) {
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        if let Some(change) = self.detector.tick(now_ms) {
             self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id });
+            self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {
+                peer_id: change.peer_id,
+                confidence: change.c2_margin,
+            });
+        }
+    }
+
+    /// Update Prometheus gauges with current per-peer speaker activity scores.
+    ///
+    /// Call this periodically (e.g. on the same 300ms tick as `tick_active_speaker`).
+    /// Only available with both `active-speaker` and `metrics-prometheus` features.
+    #[cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))))]
+    pub fn tick_speaker_scores(&mut self) {
+        for (peer_id, imm, med, lng) in self.detector.peer_scores() {
+            self.metrics.update_peer_speaker_scores(peer_id, imm, med, lng);
         }
     }
 
@@ -82,6 +117,50 @@ impl Registry {
     pub fn fanout_pending(&mut self) {
         while let Some(p) = self.to_propagate.pop_front() {
             fanout(&p, &mut self.clients);
+        }
+    }
+    /// Compute the maximum desired simulcast layer across all subscribers per publisher,
+    /// and enqueue [`Propagated::PublisherLayerHint`] when the max changes.
+    ///
+    /// Call after [`fanout_pending`][Self::fanout_pending] on any tick where
+    /// subscriber desired layers may have changed.
+    pub fn emit_publisher_layer_hints(&mut self) {
+        use std::collections::HashMap;
+        use crate::client::layer;
+
+        let mut max_per_publisher: HashMap<ClientId, SfuRid> = HashMap::new();
+        for subscriber in &self.clients {
+            let sub_desired = subscriber.desired_layer();
+            for track_out in &subscriber.tracks_out {
+                if let Some(track_in) = track_out.track_in.upgrade() {
+                    let publisher_id = track_in.origin;
+                    let entry = max_per_publisher.entry(publisher_id).or_insert(layer::LOW);
+                    let rank = |r: SfuRid| -> u8 {
+                        if r == SfuRid::LOW { 0 } else if r == SfuRid::MEDIUM { 1 } else { 2 }
+                    };
+                    if rank(sub_desired) > rank(*entry) {
+                        *entry = sub_desired;
+                    }
+                }
+            }
+        }
+        for (publisher_id, max_rid) in max_per_publisher {
+            let is_relay = self
+                .clients
+                .iter()
+                .any(|c| c.id == publisher_id && c.is_relay());
+
+            if is_relay {
+                self.to_propagate.push_back(Propagated::PublisherLayerHintForUpstream {
+                    publisher_relay_id: publisher_id,
+                    max_rid,
+                });
+            } else {
+                self.to_propagate.push_back(Propagated::PublisherLayerHint {
+                    publisher_id,
+                    max_rid,
+                });
+            }
         }
     }
 }

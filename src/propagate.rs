@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use crate::bandwidth::BandwidthEstimate;
 use crate::client::TrackIn;
-use crate::ids::SfuMid;
+use crate::ids::{SfuMid, SfuRid};
 use crate::keyframe::SfuKeyframeRequest;
 use crate::media::SfuMediaPayload;
 use crate::rtcp_stats::PeerRtcpStats;
@@ -60,6 +60,25 @@ pub enum Propagated {
     /// The fanout dispatcher routes this only to the `source_client`.
     KeyframeRequest(ClientId, SfuKeyframeRequest, ClientId, SfuMid),
 
+    /// A keyframe request that must be forwarded upstream to the origin SFU.
+    ///
+    /// Emitted instead of [`KeyframeRequest`][Self::KeyframeRequest] when a
+    /// subscriber requests a keyframe for a track whose publisher is a relay
+    /// client (`ClientOrigin::RelayFromSfu`). The application must relay this
+    /// request to the upstream SFU via its signalling channel -- the kit cannot
+    /// send PLI/FIR to a relay peer that has no inbound WebRTC negotiation for
+    /// that direction.
+    ///
+    /// Fields: `(source_relay_id, req, source_mid)`.
+    UpstreamKeyframeRequest {
+        /// The relay client whose upstream track needs a keyframe.
+        source_relay_id: ClientId,
+        /// The keyframe request (PLI or FIR).
+        req: SfuKeyframeRequest,
+        /// The track MID on the relay client.
+        source_mid: SfuMid,
+    },
+
     /// Dominant-speaker election changed.
     ///
     /// Emitted by [`Registry::tick_active_speaker`][crate::Registry::tick_active_speaker]
@@ -70,6 +89,12 @@ pub enum Propagated {
     ActiveSpeakerChanged {
         /// The peer that became the dominant speaker.
         peer_id: u64,
+        /// Medium-window log-ratio confidence margin (C2).
+        ///
+        /// `0.0` means bootstrap election (first speaker in an empty room).
+        /// Values above `2.0` indicate a confident, contested win.
+        /// Consumers may use this to delay UI updates for low-confidence switches.
+        confidence: f64,
     },
 
     /// Egress bandwidth estimate updated for this peer.
@@ -96,6 +121,58 @@ pub enum Propagated {
         /// The updated stats snapshot.
         stats: PeerRtcpStats,
     },
+
+    /// Subscriber's egress BWE crossed the audio-only threshold.
+    ///
+    /// When `audio_only = true`, stop forwarding video to this peer.
+    /// When `audio_only = false`, resume. Only emitted with `pacer` feature.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    AudioOnlyMode {
+        /// The subscriber peer.
+        peer_id: ClientId,
+        /// `true` = entered audio-only; `false` = video restored.
+        audio_only: bool,
+    },
+    /// Hint to the publisher that they may stop encoding layers above `max_rid`.
+    ///
+    /// Emitted by [`Registry::emit_publisher_layer_hints`] when the maximum
+    /// desired layer across all subscribers changes. The application should relay
+    /// this to the publisher via RTCP or signalling.
+    PublisherLayerHint {
+        /// The publisher whose encoding may be reduced.
+        publisher_id: ClientId,
+        /// Highest simulcast layer any subscriber currently wants.
+        max_rid: SfuRid,
+    },
+
+    /// Hint to the application that the upstream SFU should stop encoding layers
+    /// above  for this relay publisher.
+    ///
+    /// Emitted by [] when the maximum
+    /// desired layer across all subscribers of a relay-originated publisher changes.
+    /// The application must forward this via its inter-SFU signalling channel.
+    PublisherLayerHintForUpstream {
+        /// The relay client whose upstream publisher should be signalled.
+        publisher_relay_id: ClientId,
+        /// Highest simulcast layer any subscriber of this relay currently wants.
+        max_rid: SfuRid,
+    },
+
+    /// Subscriber capability hint for Opus audio codec redundancy.
+    ///
+    /// Emit to the application signalling layer to negotiate `red/48000/2` in
+    /// the publisher's SDP offer, or relay via a custom data-channel protocol.
+    /// The SFU does not inject RED — it is a sender-side concern.
+    AudioCodecHint {
+        /// The subscriber expressing the preference.
+        peer_id: ClientId,
+        /// Subscriber can decode Opus RFC 2198 RED (`red/48000/2` in SDP).
+        opus_red: bool,
+        /// Subscriber can decode Opus DRED (Deep REDundancy — libopus 0.9+).
+        opus_dred: bool,
+    },
+
 }
 
 impl Propagated {
@@ -114,6 +191,12 @@ impl Propagated {
             Propagated::ActiveSpeakerChanged { .. } => None,
             Propagated::BandwidthEstimate { peer_id, .. }
             | Propagated::RtcpStats { peer_id, .. } => Some(*peer_id),
+            #[cfg(feature = "pacer")]
+            Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
+            Propagated::PublisherLayerHint { publisher_id, .. } => Some(*publisher_id),
+            Propagated::PublisherLayerHintForUpstream { publisher_relay_id, .. } => Some(*publisher_relay_id),
+            Propagated::AudioCodecHint { peer_id, .. } => Some(*peer_id),
+            Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => Some(*source_relay_id),
         }
     }
 }

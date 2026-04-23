@@ -65,6 +65,17 @@ impl SfuKeyframeRequest {
     }
 }
 
+
+#[cfg(any(test, feature = "test-utils"))]
+impl SfuKeyframeRequest {
+    /// Construct a keyframe request for tests.
+    ///
+    /// Bypasses the str0m conversion path — use only in unit/integration tests.
+    pub fn new_for_tests(mid: SfuMid, rid: Option<SfuRid>, kind: SfuKeyframeKind) -> Self {
+        Self { mid, rid, kind }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

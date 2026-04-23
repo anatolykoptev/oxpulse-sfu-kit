@@ -1,7 +1,7 @@
 # Research — Potential Improvements for oxpulse-sfu-kit
 
-**Date:** 2026-04-21
-**Scope:** `oxpulse-sfu-kit` v0.1 (and companion `rust-dominant-speaker` v0.1) — grounded in
+**Date:** 2026-04-22 (updated; originally 2026-04-21)
+**Scope:** `oxpulse-sfu-kit` v0.3.1 (and companion `rust-dominant-speaker` v0.1.1) — grounded in
 academic + industry research, read-only research pass.
 **Anchor constraints:**
 - Must be actionable in the Rust ecosystem.
@@ -13,38 +13,36 @@ academic + industry research, read-only research pass.
 
 ## Executive summary
 
-1. **Biggest lift-to-ROI item: plumb str0m's existing BWE + a pacer into the kit.**
-   str0m 0.18 already ships a production libWebRTC GoogCC port (`src/bwe/`, trendline delay
-   estimator + MLE loss controller + leaky-bucket pacer) — but it is `pub(crate)` and we never
-   surface `Event::EgressBitrateEstimate` or TWCC feedback up to the `Registry`. We have
-   no pacer, no per-subscriber budget, no hysteresis, no audio-only fallback. Parent
-   OxPulse already has a copy-adapt implementation in `crates/sfu/src/{bandwidth,pacer}.rs`
-   we can lift almost verbatim. **This is the single largest correctness improvement
-   available.** Medium effort (1 week), very high impact.
+1. **✅ DONE (v0.2.0) — BWE surfacing.** `Event::EgressBitrateEstimate` is now exposed as
+   `Propagated::BandwidthEstimate { peer_id, estimate }` with a `BandwidthEstimate { bps }`
+   type and a `sfu_bandwidth_estimate_bps{peer_id}` Prometheus gauge. The remaining gap:
+   **no pacer, no per-subscriber budget allocator, no hysteresis, no audio-only fallback.**
+   Parent OxPulse has `crates/sfu/src/{bandwidth,pacer}.rs` we can lift almost verbatim.
+   **This is still the single largest correctness improvement remaining.** Medium (1 week).
 2. **Add AV1 Dependency Descriptor parsing and a per-subscriber layer selector.**
    Without parsing the AV1 DD RTP header extension (RFC in progress, draft-ietf-avtext-framemarking
    for H.264/HEVC, RFC 7941-style for AV1) we cannot drop individual temporal/spatial layers
    of an AV1-SVC stream — we can only do coarse simulcast RID selection. rheomesh has a
    working parser at `sfu/src/rtp/dependency_descriptor.rs`; we can port it. Medium (1 week).
-3. **Dominant-speaker stability is fine; the weakest link is raw client-side audio levels.**
+3. **✅ DONE (rust-dominant-speaker v0.1.1) — hysteresis constants exposed.**
+   `DetectorConfig { c1, c2, c3, n1, n2, n3, tick_interval }` is now public API.
    Volfin & Cohen 2012 + mediasoup constants remain the deployed baseline at Jitsi,
    mediasoup, Element Call, and (via `rust-dominant-speaker`) us. Recent deep-learning ASD
    (TalkNet / LoCoNet / UniTalk Ge et al. 2025 arXiv:2505.21954) is **not applicable**
    to SFU audio-level streams because it requires server-side video decode — we're a
-   forwarder. The actionable improvement is (a) let downstream tune the hysteresis
-   constants (`C1 / C2 / C3 / TICK_INTERVAL`) instead of hard-coding mediasoup's values,
-   and (b) document the RNNoise / ten-vad pre-filter path for publishers that want
-   cleaner RFC 6464 levels.
+   forwarder. Remaining: (a) `current_top_k` ring for recent-speakers UX,
+   (b) document the RNNoise / ten-vad pre-filter path for publishers.
 4. **Opus RED we already have at parent level; the kit should expose a VAD/RED hint channel.**
    Opus LBRR + RFC 2198 RED are packet-level sender concerns and already work through
    str0m. The kit should expose a way for subscribers to *request* RED for their
    downstream (LiveKit does this via `SubscribedCodec`). Small (2-3 days).
-5. **Encryption: plan for SFrame + MLS-for-keys by v0.3.** SFrame (RFC 9605, August 2024)
-   plus MLS (RFC 9420) is the emerging industry standard for E2E over SFUs
-   (draft-barnes-sframe-mls-00). Double Ratchet works at 1:1 and small-group scale but has
-   O(N²) re-key cost; MLS is O(log N). Kit stays key-agnostic — we need only forward
-   encrypted payloads and expose a key-epoch header extension. Medium (integration test
-   complexity dominates; 1-2 weeks if crypto stack is elsewhere).
+5. **Encryption: SFrame + MLS-for-keys (not yet started, v0.3 goal remains open).**
+   SFrame (RFC 9605, August 2024) plus MLS (RFC 9420) is the emerging industry standard
+   for E2E over SFUs (draft-barnes-sframe-mls-00). Double Ratchet works at 1:1 and
+   small-group scale but has O(N²) re-key cost; MLS is O(log N). Kit stays key-agnostic —
+   we need only forward encrypted payloads and expose a key-epoch header extension. Medium
+   (integration test complexity dominates; 1-2 weeks if crypto stack is elsewhere).
+   Now targeting v0.4 given bandwidth of v0.3 encapsulation pass.
 6. **L4S is coming but it is premature for us.** ECN-based LLLS (RFC 9330) is in active
    Chromium rollout but requires kernel + network path cooperation (ECT(1) marking,
    DualPI2 AQM). It belongs in the *pacer* design as a pluggable CC mode once a Rust L4S
@@ -389,22 +387,26 @@ does it expose** so that cascade / edge / relay patterns are implementable downs
 
 ## Rust ecosystem gap analysis
 
-| Feature | oxpulse-sfu-kit v0.1 | webrtc-rs/sfu | rheomesh | atm0s-media-server | live777 |
+| Feature | oxpulse-sfu-kit v0.3.1 | webrtc-rs/sfu | rheomesh | atm0s-media-server | live777 |
 |---|---|---|---|---|---|
 | Underlying stack | str0m 0.18 | webrtc-rs | webrtc-rs | custom sans-io | webrtc-rs |
+| Public API hides dep types | **yes** (v0.3 encapsulation pass) | no | no | no | no |
+| Compile-time API leak guard | **yes** (`tests/encapsulation_surface.rs`) | no | no | no | no |
 | Simulcast RID forwarding | yes (`q/h/f`) | partial | yes | yes | yes |
 | AV1 SVC partial-layer drop | **no** | no | **yes** (dependency_descriptor) | yes | partial |
 | Dynacast / publisher-layer hints | **no** | no | partial | yes (bitrate_allocator) | no |
-| BWE / pacer | **no** (swallowed) | no BWE in webrtc-rs | via webrtc-rs | yes (in-house) | via webrtc-rs |
+| BWE surfacing | **yes** (v0.2, `Propagated::BandwidthEstimate`) | no BWE in webrtc-rs | via webrtc-rs | yes (in-house) | via webrtc-rs |
+| Pacer / per-subscriber budget | **no** | no | partial | yes (`bitrate_allocator`) | no |
 | TWCC plumbing to consumer | **no** | partial | yes | yes | yes |
-| Per-subscriber budget allocator | **no** | no | partial | yes (`bitrate_allocator`) | no |
-| Dominant-speaker (Volfin & Cohen) | **yes** (best in class for this narrow thing) | no | no | yes (audio_mixer) | no |
+| Per-peer RTCP stats (loss/jitter/rtt) | **yes** (v0.2, Prometheus gauges) | no | partial | yes | no |
+| Dominant-speaker (Volfin & Cohen) | **yes** + `DetectorConfig` (best in class) | no | no | yes (audio_mixer) | no |
+| Multi-room (`serve_socket`) | **yes** (v0.2) | partial | yes | yes | yes |
 | WHIP / WHEP | **no** | partial | yes | yes | **yes** (headline feature) |
 | Recording (MP4/WebM egress) | **no** | no | yes | yes | no |
 | Cascade / relay | **no** | no | yes (`relay/`) | yes (cluster) | partial |
 | Data channels fanout | **no** (out of scope?) | partial | yes | yes | no |
 | Server-side mixing (MCU mode) | no | no | no | yes (`audio_mixer`) | no |
-| Metrics | yes (Prometheus, narrow) | no | partial | yes | yes |
+| Metrics | yes (Prometheus, per-peer) | no | partial | yes | yes |
 | SFrame-aware header forwarding | no | no | no | no | no |
 | License | MIT/Apache | MIT | MIT | MIT | MPL-2.0 |
 | Health grade (go-code) | — | — | C | C | — |
@@ -424,28 +426,33 @@ does it expose** so that cascade / edge / relay patterns are implementable downs
 
 Ranked by (impact × actionability / effort). v0.2 = next minor. v0.3 = 2 minors out. Later = speculative.
 
+Legend: ✅ shipped, 🔜 next, — deferred
+
 | # | Item | Area | Effort | Impact | Release |
 |---|---|---|---|---|---|
-| 1 | Surface `str0m::Event::EgressBitrateEstimate` → `Propagated::BandwidthEstimate` | BWE | small (2-3 d) | High (hidden today) | **v0.2** |
-| 2 | Port parent's `BandwidthEstimator` + `Pacer` (TWCC → budget → RID selection with hysteresis + audio-only cutoff) behind `feature = "pacer"` | BWE / layer | medium (1 week) | **Very High** — correctness on real networks | **v0.2** |
-| 3 | AV1 Dependency Descriptor parser (port rheomesh) | SVC | medium (1 week) | High (AV1-SVC is the near-future publisher default) | **v0.2** |
-| 4 | Opus RED (RFC 2198) + DRED advertisement / pass-through | Error resilience | small (2-3 d) | High on lossy links | **v0.2** |
-| 5 | RTCP RR → per-peer loss / jitter / RTT Prometheus gauges | Observability | small (2-3 d) | High (operational) | **v0.2** |
-| 6 | `DetectorConfig` — expose Volfin & Cohen constants + `current_top_k` | ASD | small (1-2 d) | Medium | **v0.2** |
-| 7 | Per-peer label cardinality scrub on disconnect (port parent's `reap_dead` pattern) | Observability | small (1 d) | Medium (prevents incidents) | **v0.2** |
-| 8 | `LayerSelector` trait centralizing desired-layer + BWE + active-rids logic | SVC | small (2 d) | Medium | **v0.2** |
-| 9 | `serve_socket` split from `run_udp_loop` for multi-room usage | topology | small (2-3 d) | Medium (required for real servers) | **v0.2** |
-| 10 | Define `KeyEpochHeaderExt` RTP header forwarding for SFrame consumers | E2E | small (1-2 d) | Medium (unblocks SFrame) | **v0.2** |
-| 11 | Dynacast-style `Propagated::PublisherLayerHint` | SVC | medium (3-4 d) | Medium-High | **v0.2** |
-| 12 | Document RNNoise / ten-vad pre-filter, Opus DRED pass-through, SFrame architecture | docs | small (1-2 d) | Medium (discoverability) | **v0.2** |
-| 13 | MOS via G.107 E-model | observability | medium (3-5 d) | Medium (product SLI) | v0.3 |
-| 14 | RFC 9626 Video Frame Marking parser (H.264/VP9/HEVC) | SVC | small (2-3 d) | Medium | v0.3 |
-| 15 | `CongestionControl` trait + `RelaySource` trait for cascade | architecture | medium (1 week) | Medium (future-proofing) | v0.3 |
-| 16 | Receiver-driven layer preference API | SVC | small (1-2 d) | Medium | v0.3 |
-| 17 | RTCP XR block parsing | observability | medium (1 week) | Low-Medium | v0.3 |
-| 18 | SCReAMv2 pluggable CC (Rust port) | BWE | large (>1 month) | Low (cellular-specific) | later |
-| 19 | L4S mode (ECT(1) marking + ECE feedback) | BWE | large, blocked on ecosystem | Low today, rising | later |
-| 20 | Predictive ML-based layer selection | SVC | large, research | Speculative | not planned |
+| 1 | ✅ Surface `str0m::Event::EgressBitrateEstimate` → `Propagated::BandwidthEstimate` | BWE | small | High | v0.2.0 |
+| 2 | ✅ RTCP RR → per-peer loss / jitter / RTT Prometheus gauges | Observability | small | High | v0.2.0 |
+| 3 | ✅ Per-peer label cardinality scrub on disconnect (`SfuMetrics::reap_dead_peer`) | Observability | small | Medium | v0.2.0 |
+| 4 | ✅ `DetectorConfig` — expose Volfin & Cohen constants in `rust-dominant-speaker` | ASD | small | Medium | rust-ds v0.1.1 |
+| 5 | ✅ `serve_socket` split from `run_udp_loop` for multi-room usage | Topology | small | Medium | v0.2.0 |
+| 6 | ✅ v0.3 encapsulation pass — all public types hide str0m surface | API | medium | Very High | v0.3.0 |
+| 7 | ✅ `tests/encapsulation_surface.rs` — compile-time API leak guard | API | small | High | v0.3.0 |
+| 8 | 🔜 Port parent's `BandwidthEstimator` + `Pacer` (TWCC → budget → RID selection with hysteresis + audio-only cutoff) behind `feature = "pacer"` | BWE / layer | medium (1 week) | **Very High** — correctness on real networks | v0.4 |
+| 9 | 🔜 AV1 Dependency Descriptor parser (port rheomesh) | SVC | medium (1 week) | High (AV1-SVC near-future default) | v0.4 |
+| 10 | 🔜 Opus RED (RFC 2198) + DRED advertisement / pass-through | Error resilience | small (2-3 d) | High on lossy links | v0.4 |
+| 11 | 🔜 `LayerSelector` trait centralizing desired-layer + BWE + active-rids logic | SVC | small (2 d) | Medium | v0.4 |
+| 12 | 🔜 Define `KeyEpochHeaderExt` RTP header forwarding for SFrame consumers | E2E | small (1-2 d) | Medium | v0.4 |
+| 13 | 🔜 Dynacast-style `Propagated::PublisherLayerHint` | SVC | medium (3-4 d) | Medium-High | v0.4 |
+| 14 | 🔜 `current_top_k` recent-speakers ring in `rust-dominant-speaker` | ASD | small (1 d) | Medium | rust-ds v0.2 |
+| 15 | 🔜 Document RNNoise / ten-vad pre-filter, Opus DRED pass-through, SFrame architecture | docs | small (1-2 d) | Medium | v0.4 |
+| 16 | MOS via G.107 E-model | Observability | medium (3-5 d) | Medium | v0.5 |
+| 17 | RFC 9626 Video Frame Marking parser (H.264/VP9/HEVC) | SVC | small (2-3 d) | Medium | v0.5 |
+| 18 | `CongestionControl` trait + `RelaySource` trait for cascade | Architecture | medium (1 week) | Medium | v0.5 |
+| 19 | Receiver-driven layer preference API | SVC | small (1-2 d) | Medium | v0.5 |
+| 20 | RTCP XR block parsing | Observability | medium (1 week) | Low-Medium | v0.5 |
+| 21 | SCReAMv2 pluggable CC (Rust port) | BWE | large (>1 month) | Low (cellular-specific) | later |
+| 22 | L4S mode (ECT(1) marking + ECE feedback) | BWE | large, blocked on ecosystem | Low today, rising | later |
+| 23 | Predictive ML-based layer selection | SVC | large, research | Speculative | not planned |
 
 ---
 

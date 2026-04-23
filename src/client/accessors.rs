@@ -77,4 +77,82 @@ impl Client {
         );
         self.rtc.accepts(&input)
     }
+
+    /// Feed a new egress BWE reading to this subscriber's pacer.
+    ///
+    /// If the action is [`PacerAction::ChangeLayer`], `desired_layer` is updated
+    /// in-place before returning. For `GoAudioOnly` / `RestoreVideo`, the registry
+    /// should emit `Propagated::AudioOnlyMode`.
+    ///
+    /// Only available with the `pacer` feature.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    pub fn drive_pacer(&mut self, bps: u64) -> crate::bwe::PacerAction {
+        let action = self.pacer.update(bps);
+        if let crate::bwe::PacerAction::ChangeLayer(rid) = action {
+            self.set_desired_layer(rid);
+        }
+        action
+    }
+
+    /// Set the maximum AV1 temporal layer to forward to this subscriber.
+    ///
+    /// Packets with `temporal_id > max` are dropped at fanout.
+    /// Default is `u8::MAX` (all layers forwarded).
+    ///
+    /// Only available with the `av1-dd` feature.
+    #[cfg(feature = "av1-dd")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+    pub fn set_max_temporal_layer(&mut self, max: u8) {
+        self.max_temporal_layer = max;
+    }
+
+    /// Current AV1 temporal layer cap.
+    ///
+    /// Only available with the `av1-dd` feature.
+    #[cfg(feature = "av1-dd")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+    #[must_use]
+    pub fn max_temporal_layer(&self) -> u8 {
+        self.max_temporal_layer
+    }
+
+    /// Set the maximum RFC 9626 temporal layer to forward to this subscriber.
+    ///
+    /// Packets with `temporal_id > max` are dropped at fanout.
+    /// Default: `u8::MAX` (all layers forwarded).
+    #[cfg(feature = "vfm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+    pub fn set_max_vfm_temporal_layer(&mut self, max: u8) {
+        self.max_vfm_temporal_layer = max;
+    }
+
+    /// Current RFC 9626 temporal layer cap.
+    #[cfg(feature = "vfm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+    #[must_use]
+    pub fn max_vfm_temporal_layer(&self) -> u8 {
+        self.max_vfm_temporal_layer
+    }
+
+    /// This client's origin (local peer or upstream SFU relay).
+    #[must_use]
+    pub fn origin(&self) -> &crate::origin::ClientOrigin {
+        &self.origin
+    }
+
+    /// Override the client origin.
+    ///
+    /// Must be called **before** [`Registry::insert`][crate::Registry::insert].
+    /// See [`ClientOrigin`][crate::origin::ClientOrigin] for the call-order contract.
+    pub fn set_origin(&mut self, origin: crate::origin::ClientOrigin) {
+        self.origin = origin;
+    }
+
+    /// Returns `true` if this client is a relay connection from another SFU edge.
+    #[must_use]
+    pub fn is_relay(&self) -> bool {
+        matches!(self.origin, crate::origin::ClientOrigin::RelayFromSfu(_))
+    }
+
 }

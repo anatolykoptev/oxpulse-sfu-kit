@@ -38,6 +38,10 @@ pub struct Registry {
     pub(super) metrics: Arc<SfuMetrics>,
     #[cfg(feature = "active-speaker")]
     pub(super) detector: dominant_speaker::ActiveSpeakerDetector,
+    /// Fixed epoch for converting  to u64 ms for the speaker detector.
+    /// u64 ms with start at registry creation time (monotonic, not wall-clock).
+    #[cfg(feature = "active-speaker")]
+    detector_epoch: std::time::Instant,
 }
 
 impl Registry {
@@ -49,6 +53,8 @@ impl Registry {
             metrics,
             #[cfg(feature = "active-speaker")]
             detector: dominant_speaker::ActiveSpeakerDetector::new(),
+            #[cfg(feature = "active-speaker")]
+            detector_epoch: std::time::Instant::now(),
         }
     }
 
@@ -89,7 +95,14 @@ impl Registry {
             client.handle_track_open(std::sync::Arc::downgrade(&entry.id));
         }
         #[cfg(feature = "active-speaker")]
-        self.detector.add_peer(*client.id, Instant::now());
+        {
+            // Relay clients relay another room's audio — their levels are not
+            // meaningful for this room's dominant-speaker election.
+            if !client.is_relay() {
+                let now_ms = self.now_ms();
+                self.detector.add_peer(*client.id, now_ms);
+            }
+        }
         self.metrics.inc_client_connect();
         self.metrics.inc_active_participants();
         self.clients.push(client);
@@ -127,9 +140,40 @@ impl Registry {
     /// `level_raw` is 0–127 dBov (0 = loud, 127 = silent). Call this for every
     /// audio RTP packet received from `peer_id` after parsing the audio-level
     /// RTP header extension. Only available with the `active-speaker` feature.
+    ///
+    /// Levels for relay clients (`Client::is_relay()`) are silently ignored —
+    /// relay audio belongs to the upstream room's election, not this one.
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
-        self.detector.record_level(peer_id, level_raw, now);
+        // Relay clients are excluded from speaker election; ignore their audio levels.
+        if self.clients.iter().any(|c| *c.id == peer_id && c.is_relay()) {
+            return;
+        }
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        self.detector.record_level(peer_id, level_raw, now_ms);
+    }
+
+    /// Monotonic millisecond timestamp relative to the registry epoch.
+    ///
+    /// Used internally to convert  values to the u64 ms the
+    /// dominant-speaker detector requires (v0.3 API).
+    #[cfg(feature = "active-speaker")]
+    fn now_ms(&self) -> u64 {
+        self.detector_epoch.elapsed().as_millis() as u64
+    }
+
+    /// Return raw activity scores for all non-paused peers in the room.
+    ///
+    /// Each tuple is `(peer_id, immediate_score, medium_score, long_score)`.
+    /// Scores are the raw log-domain values from the Volfin & Cohen algorithm.
+    /// Useful for debugging speaker detection or building custom UIs.
+    ///
+    /// Only available with the `active-speaker` feature.
+    #[cfg(feature = "active-speaker")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
+    #[must_use]
+    pub fn peer_audio_scores(&self) -> Vec<(u64, f64, f64, f64)> {
+        self.detector.peer_scores()
     }
 }

@@ -24,6 +24,7 @@ impl Client {
     pub fn new(rtc: SfuRtc, metrics: Arc<SfuMetrics>) -> Self {
         Self {
             id: next_client_id(),
+            origin: crate::origin::ClientOrigin::Local,
             rtc: rtc.0,
             tracks_in: Vec::new(),
             tracks_out: Vec::new(),
@@ -35,6 +36,12 @@ impl Client {
             delivered_media: AtomicU64::new(0),
             #[cfg(any(test, feature = "test-utils"))]
             delivered_active_speaker: AtomicU64::new(0),
+            #[cfg(feature = "pacer")]
+            pacer: crate::bwe::SubscriberPacer::new(),
+            #[cfg(feature = "av1-dd")]
+            max_temporal_layer: u8::MAX, // default: forward all temporal layers
+            #[cfg(feature = "vfm")]
+            max_vfm_temporal_layer: u8::MAX,
         }
     }
 }

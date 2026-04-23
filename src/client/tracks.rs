@@ -24,6 +24,13 @@ pub struct TrackIn {
     pub mid: Mid,
     /// Audio or video.
     pub kind: MediaKind,
+    /// `true` if the publishing client is a relay from another SFU edge.
+    ///
+    /// Set at track-open time from the publisher's `is_relay()` status.
+    /// Used by the subscriber's keyframe-request path to emit
+    /// `Propagated::UpstreamKeyframeRequest` (added in relay-rerouting task)
+    /// instead of a direct PLI/FIR.
+    pub relay_source: bool,
 }
 
 #[derive(Debug)]
