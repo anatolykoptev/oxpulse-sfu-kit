@@ -31,6 +31,7 @@ active-speaker  = ["dep:dominant-speaker"]
 metrics-prometheus = ["dep:prometheus"]
 pacer           = []
 av1-dd          = []
+vfm             = []
 test-utils      = []
 
 [dependencies]

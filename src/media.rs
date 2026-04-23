@@ -57,6 +57,9 @@ pub struct SfuMediaPayload {
     /// Parsed AV1 Dependency Descriptor info, if the `av1-dd` feature is enabled.
     #[cfg(feature = "av1-dd")]
     av1_dd: Option<crate::av1::Av1DdInfo>,
+    /// Parsed RFC 9626 Video Frame Marking header extension, if present.
+    #[cfg(feature = "vfm")]
+    vfm_fm: Option<crate::vfm::FrameMarkingInfo>,
 }
 
 impl SfuMediaPayload {
@@ -107,6 +110,17 @@ impl SfuMediaPayload {
         self.av1_dd
     }
 
+    /// Parsed RFC 9626 Video Frame Marking header extension, if present.
+    ///
+    /// Returns `None` if the packet carries no frame marking extension,
+    /// or str0m 0.18 does not surface it in `ExtensionValues`.
+    #[cfg(feature = "vfm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+    #[must_use]
+    pub fn vfm_frame_marking(&self) -> Option<crate::vfm::FrameMarkingInfo> {
+        self.vfm_fm
+    }
+
     /// Clone the raw parts needed by str0m's fanout write path.
     ///
     /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
@@ -144,6 +158,8 @@ impl SfuMediaPayload {
             params: data.params,
             #[cfg(feature = "av1-dd")]
             av1_dd: None, // TODO(av1-dd): populate when str0m exposes ExtensionValues::dependency_descriptor
+            #[cfg(feature = "vfm")]
+            vfm_fm: None, // TODO(vfm): populate when str0m exposes ExtensionValues::frame_marking
         }
     }
 }

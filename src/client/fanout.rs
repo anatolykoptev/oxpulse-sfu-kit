@@ -42,6 +42,14 @@ impl Client {
             }
         }
 
+        // Drop H.264/VP9/HEVC packets whose temporal layer exceeds this subscriber's cap.
+        #[cfg(feature = "vfm")]
+        if let Some(fm) = data.vfm_frame_marking() {
+            if fm.temporal_id > self.max_vfm_temporal_layer {
+                return;
+            }
+        }
+
         let data_mid = data.mid().to_str0m();
 
         // Find the matching outbound track entry.

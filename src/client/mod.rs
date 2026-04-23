@@ -69,6 +69,9 @@ pub struct Client {
     /// Maximum AV1 temporal layer to forward to this subscriber (default = all).
     #[cfg(feature = "av1-dd")]
     pub(crate) max_temporal_layer: u8,
+    /// Maximum RFC 9626 temporal layer to forward to this subscriber (default = all).
+    #[cfg(feature = "vfm")]
+    pub(crate) max_vfm_temporal_layer: u8,
 }
 
 impl Client {

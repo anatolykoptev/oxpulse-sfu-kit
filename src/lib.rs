@@ -87,6 +87,9 @@ pub mod bwe;
 #[cfg(feature = "av1-dd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
 pub mod av1;
+#[cfg(feature = "vfm")]
+#[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+pub mod vfm;
 pub mod client;
 pub mod config;
 pub mod fanout;
@@ -112,6 +115,9 @@ pub use bwe::PacerAction;
 #[cfg(feature = "av1-dd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
 pub use av1::Av1DdInfo;
+#[cfg(feature = "vfm")]
+#[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+pub use vfm::FrameMarkingInfo;
 pub use client::Client;
 pub use config::SfuConfig;
 pub use ids::{SfuMid, SfuPt, SfuRid};

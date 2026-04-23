@@ -39,6 +39,8 @@ impl Client {
             pacer: crate::bwe::SubscriberPacer::new(),
             #[cfg(feature = "av1-dd")]
             max_temporal_layer: u8::MAX, // default: forward all temporal layers
+            #[cfg(feature = "vfm")]
+            max_vfm_temporal_layer: u8::MAX,
         }
     }
 }
