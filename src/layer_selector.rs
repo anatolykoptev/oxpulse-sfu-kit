@@ -74,4 +74,33 @@ mod tests {
         let active = [SfuRid::MEDIUM, SfuRid::HIGH];
         assert_eq!(BestFitSelector.select(SfuRid::LOW, &active), SfuRid::MEDIUM);
     }
+
+    #[test]
+    fn single_active_rid_always_wins() {
+        let s = BestFitSelector;
+        // Only HIGH available, subscriber wants LOW -> must return HIGH (lowest available = HIGH)
+        assert_eq!(s.select(SfuRid::LOW, &[SfuRid::HIGH]), SfuRid::HIGH);
+        // Only LOW available, subscriber wants HIGH -> must return LOW (best below HIGH = LOW)
+        assert_eq!(s.select(SfuRid::HIGH, &[SfuRid::LOW]), SfuRid::LOW);
+        // Only MEDIUM, subscriber wants MEDIUM -> exact match
+        assert_eq!(s.select(SfuRid::MEDIUM, &[SfuRid::MEDIUM]), SfuRid::MEDIUM);
+    }
+
+    #[test]
+    fn desired_exactly_matches_one_of_multiple_active() {
+        let s = BestFitSelector;
+        // Desired = LOW, active = [LOW, MEDIUM, HIGH] -> must return LOW (exact match preferred over higher)
+        let active = [SfuRid::LOW, SfuRid::MEDIUM, SfuRid::HIGH];
+        assert_eq!(s.select(SfuRid::LOW, &active), SfuRid::LOW);
+    }
+
+    #[test]
+    fn best_fit_prefers_highest_below_desired_not_lowest() {
+        let s = BestFitSelector;
+        // Desired = HIGH, active = [LOW, MEDIUM] -> must return MEDIUM (highest <= HIGH), not LOW
+        let active = [SfuRid::LOW, SfuRid::MEDIUM];
+        let result = s.select(SfuRid::HIGH, &active);
+        assert_eq!(result, SfuRid::MEDIUM,
+            "BestFitSelector must return the HIGHEST active RID <= desired, not the lowest");
+    }
 }

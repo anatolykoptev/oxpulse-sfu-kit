@@ -98,4 +98,62 @@ mod tests {
         assert_eq!(info.spatial_id, 0);
         assert_eq!(info.temporal_id, 0);
     }
+
+    #[test]
+    fn all_nine_l3t3_templates_map_correctly() {
+        // Full L3T3 grid: template_id = spatial*3 + temporal
+        let expected: [(u8, u8); 9] = [
+            (0, 0), // S0T0
+            (0, 1), // S0T1
+            (0, 2), // S0T2
+            (1, 0), // S1T0
+            (1, 1), // S1T1
+            (1, 2), // S1T2
+            (2, 0), // S2T0
+            (2, 1), // S2T1
+            (2, 2), // S2T2
+        ];
+        for (template_id, (exp_spatial, exp_temporal)) in expected.iter().enumerate() {
+            let byte = make_byte(false, false, template_id as u8);
+            let info = parse(&[byte]).unwrap();
+            assert_eq!(info.spatial_id, *exp_spatial,
+                "template {template_id}: expected spatial {exp_spatial}, got {}", info.spatial_id);
+            assert_eq!(info.temporal_id, *exp_temporal,
+                "template {template_id}: expected temporal {exp_temporal}, got {}", info.temporal_id);
+        }
+    }
+
+    #[test]
+    fn template_id_8_is_last_valid_l3t3() {
+        // template 8 = S2T2; template 9 = fallback (0,0)
+        let byte8 = make_byte(false, false, 8);
+        let info8 = parse(&[byte8]).unwrap();
+        assert_eq!((info8.spatial_id, info8.temporal_id), (2, 2),
+            "template 8 must map to S2T2");
+
+        let byte9 = make_byte(false, false, 9);
+        let info9 = parse(&[byte9]).unwrap();
+        assert_eq!((info9.spatial_id, info9.temporal_id), (0, 0),
+            "template 9 is out of L3T3 range, must fall back to S0T0");
+    }
+
+    #[test]
+    fn multi_byte_payload_uses_only_first_byte() {
+        // DD payloads can be multi-byte; we only parse byte 0
+        let payload = [make_byte(true, true, 4), 0xFF, 0xFF, 0xFF];
+        let info = parse(&payload).unwrap();
+        // template 4 = S1T1
+        assert_eq!(info.spatial_id, 1);
+        assert_eq!(info.temporal_id, 1);
+        assert!(info.start_of_frame);
+        assert!(info.end_of_frame);
+    }
+
+    #[test]
+    fn template_id_63_highest_unknown_is_base() {
+        // Already tested but make the boundary explicit: 0x3F = 63, highest 6-bit value
+        let byte = make_byte(true, false, 0x3F);
+        let info = parse(&[byte]).unwrap();
+        assert_eq!((info.spatial_id, info.temporal_id), (0, 0));
+    }
 }

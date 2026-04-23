@@ -167,4 +167,78 @@ mod tests {
             assert_eq!(p.update(LOW_MIN_BPS + 50_000), PacerAction::NoChange);
         }
     }
+
+    #[test]
+    fn exact_audio_only_boundary_is_video_mode() {
+        // bps == AUDIO_ONLY_BPS is NOT audio-only (the condition is `bps < AUDIO_ONLY_BPS`)
+        let mut p = SubscriberPacer::new();
+        let action = p.update(AUDIO_ONLY_BPS); // exactly 80_000
+        assert_ne!(action, PacerAction::GoAudioOnly,
+            "exactly AUDIO_ONLY_BPS should remain in video mode (condition is strictly <)");
+    }
+
+    #[test]
+    fn no_double_go_audio_only() {
+        // Second call while already audio-only must return NoChange, not GoAudioOnly again
+        let mut p = SubscriberPacer::new();
+        let first = p.update(AUDIO_ONLY_BPS - 1);
+        assert_eq!(first, PacerAction::GoAudioOnly);
+        let second = p.update(1_000); // even lower --- still audio-only, must NOT emit again
+        assert_eq!(second, PacerAction::NoChange,
+            "GoAudioOnly must not be emitted twice; second call while audio-only must return NoChange");
+    }
+
+    #[test]
+    fn restore_video_resets_streak_for_upgrade() {
+        // After RestoreVideo, subscriber is at LOW. Upgrading to MEDIUM still needs 3 ticks.
+        let mut p = SubscriberPacer::new();
+        p.update(AUDIO_ONLY_BPS - 1); // GoAudioOnly
+        p.update(LOW_MIN_BPS + 1);    // RestoreVideo, now at LOW, streak=0
+        // 2 ticks above MEDIUM threshold --- not enough
+        p.update(MEDIUM_MIN_BPS + 1);
+        p.update(MEDIUM_MIN_BPS + 1);
+        assert_eq!(p.layer(), SfuRid::LOW, "after RestoreVideo, still need 3 ticks to upgrade");
+        // 3rd tick upgrades
+        let action = p.update(MEDIUM_MIN_BPS + 1);
+        assert_eq!(action, PacerAction::ChangeLayer(SfuRid::MEDIUM));
+    }
+
+    #[test]
+    fn exact_low_min_boundary_triggers_restore_video() {
+        // bps == LOW_MIN_BPS while audio-only should trigger RestoreVideo
+        let mut p = SubscriberPacer::new();
+        p.update(AUDIO_ONLY_BPS - 1); // enter audio-only
+        let action = p.update(LOW_MIN_BPS); // exactly LOW_MIN_BPS
+        assert_eq!(action, PacerAction::RestoreVideo,
+            "exactly LOW_MIN_BPS while audio-only should trigger RestoreVideo (condition is >=)");
+    }
+
+    #[test]
+    fn grey_zone_while_audio_only_is_no_change() {
+        // bps in (AUDIO_ONLY_BPS, LOW_MIN_BPS) while audio-only: no action
+        let mut p = SubscriberPacer::new();
+        p.update(AUDIO_ONLY_BPS - 1); // enter audio-only
+        for bps in [AUDIO_ONLY_BPS, AUDIO_ONLY_BPS + 1, LOW_MIN_BPS - 1] {
+            assert_eq!(p.update(bps), PacerAction::NoChange,
+                "bps={bps} in grey zone should be NoChange while audio-only");
+        }
+    }
+
+    #[test]
+    fn downgrade_from_medium_resets_streak_so_re_upgrade_needs_3_ticks() {
+        let mut p = SubscriberPacer::new();
+        // Get to MEDIUM
+        for _ in 0..3 { p.update(MEDIUM_MIN_BPS + 1); }
+        assert_eq!(p.layer(), SfuRid::MEDIUM);
+        // Downgrade
+        p.update(LOW_MIN_BPS + 1);
+        assert_eq!(p.layer(), SfuRid::LOW);
+        // 2 ticks up --- not enough (streak was reset by downgrade)
+        p.update(MEDIUM_MIN_BPS + 1);
+        p.update(MEDIUM_MIN_BPS + 1);
+        assert_eq!(p.layer(), SfuRid::LOW, "streak must have reset on downgrade");
+        // 3rd tick --- upgrades again
+        p.update(MEDIUM_MIN_BPS + 1);
+        assert_eq!(p.layer(), SfuRid::MEDIUM);
+    }
 }
