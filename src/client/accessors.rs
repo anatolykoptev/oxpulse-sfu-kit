@@ -94,4 +94,26 @@ impl Client {
         }
         action
     }
+
+    /// Set the maximum AV1 temporal layer to forward to this subscriber.
+    ///
+    /// Packets with `temporal_id > max` are dropped at fanout.
+    /// Default is `u8::MAX` (all layers forwarded).
+    ///
+    /// Only available with the `av1-dd` feature.
+    #[cfg(feature = "av1-dd")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+    pub fn set_max_temporal_layer(&mut self, max: u8) {
+        self.max_temporal_layer = max;
+    }
+
+    /// Current AV1 temporal layer cap.
+    ///
+    /// Only available with the `av1-dd` feature.
+    #[cfg(feature = "av1-dd")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+    #[must_use]
+    pub fn max_temporal_layer(&self) -> u8 {
+        self.max_temporal_layer
+    }
 }

@@ -66,6 +66,9 @@ pub struct Client {
     /// Per-subscriber hysteretic layer pacer driven from egress BWE readings.
     #[cfg(feature = "pacer")]
     pub(crate) pacer: crate::bwe::SubscriberPacer,
+    /// Maximum AV1 temporal layer to forward to this subscriber (default = all).
+    #[cfg(feature = "av1-dd")]
+    pub(crate) max_temporal_layer: u8,
 }
 
 impl Client {

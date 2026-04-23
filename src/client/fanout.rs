@@ -25,6 +25,14 @@ impl Client {
             return;
         }
 
+        // Drop AV1 packets whose temporal layer exceeds this subscriber's cap.
+        #[cfg(feature = "av1-dd")]
+        if let Some(dd) = data.av1_dd() {
+            if dd.temporal_id > self.max_temporal_layer {
+                return;
+            }
+        }
+
         let data_mid = data.mid().to_str0m();
 
         // Find the matching outbound track entry.

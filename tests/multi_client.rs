@@ -150,3 +150,14 @@ fn pacer_upgrades_layer_after_three_bwe_ticks() {
         "should upgrade to MEDIUM after 3 ticks"
     );
 }
+
+#[cfg(feature = "av1-dd")]
+#[test]
+fn av1_dd_max_temporal_layer_accessor_exists() {
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::ClientId;
+    let mut client = new_client(ClientId(999));
+    assert_eq!(client.max_temporal_layer(), u8::MAX);
+    client.set_max_temporal_layer(1);
+    assert_eq!(client.max_temporal_layer(), 1);
+}
