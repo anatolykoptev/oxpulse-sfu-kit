@@ -96,7 +96,6 @@ impl Registry {
         bps: u64,
     ) {
         use crate::bwe::PacerAction;
-        use crate::propagate::Propagated;
         if let Some(client) = self.clients.iter_mut().find(|c| c.id == peer_id) {
             match client.drive_pacer(bps) {
                 PacerAction::GoAudioOnly => {
