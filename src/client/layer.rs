@@ -14,7 +14,6 @@ pub const MEDIUM: SfuRid = SfuRid::MEDIUM;
 /// LiveKit full-resolution simulcast layer (`f`).
 pub const HIGH: SfuRid = SfuRid::HIGH;
 
-
 #[cfg(test)]
 mod tests {
     use str0m::media::Rid;
