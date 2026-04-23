@@ -107,3 +107,38 @@ pub fn make_media_data(mid_tag: u8, rid: Option<SfuRid>) -> SfuMediaPayload {
     };
     SfuMediaPayload::from_str0m(raw)
 }
+
+/// Seed an incoming track on `client` as if the client were a relay source.
+///
+/// Identical to [`seed_track_in`] except `relay_source = true` — so the
+/// keyframe-routing path treats this track as originating from an upstream SFU.
+pub fn seed_track_in_relay(client: &mut Client, mid_tag: u8, kind: MediaKind) -> Arc<TrackIn> {
+    let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
+    let entry = TrackInEntry {
+        id: Arc::new(TrackIn {
+            origin: client.id,
+            mid,
+            kind,
+            relay_source: true,
+        }),
+        last_keyframe_request: None,
+    };
+    let arc = entry.id.clone();
+    client.tracks_in.push(entry);
+    arc
+}
+
+/// Force a track-out entry into `Open` state so `incoming_keyframe_req` can
+/// find it by MID.
+///
+/// In production this state is set during SDP negotiation. In tests we skip
+/// that pipeline and pin the MID directly so keyframe routing can be exercised.
+pub fn open_track_out_for_tests(subscriber: &mut Client, track_in: &Arc<TrackIn>) {
+    for track_out in subscriber.tracks_out.iter_mut() {
+        if track_out.track_in.upgrade().as_deref().map(|t| t.mid) == Some(track_in.mid) {
+            track_out.state = crate::client::tracks::TrackOutState::Open(track_in.mid);
+            return;
+        }
+    }
+    panic!("no track_out found for mid {:?}", track_in.mid);
+}

@@ -227,3 +227,37 @@ fn upstream_keyframe_request_variant_exists() {
         source_mid: mid,
     };
 }
+
+
+#[cfg(feature = "test-utils")]
+#[test]
+fn keyframe_request_for_relay_track_emits_upstream_variant() {
+    use oxpulse_sfu_kit::client::test_seed::{new_client, seed_track_in_relay, open_track_out_for_tests};
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin, Propagated};
+    use str0m::media::MediaKind;
+
+    let relay_id = ClientId(300);
+    let mut relay = new_client(relay_id);
+    relay.set_origin(ClientOrigin::RelayFromSfu("edge-eu".to_string()));
+    let track_arc = seed_track_in_relay(&mut relay, 5, MediaKind::Video);
+
+    let sub_id = ClientId(301);
+    let mut sub = new_client(sub_id);
+    sub.handle_track_open(std::sync::Arc::downgrade(&track_arc));
+    open_track_out_for_tests(&mut sub, &track_arc);
+
+    let propagated = sub.incoming_keyframe_req_for_tests(
+        str0m::media::KeyframeRequest {
+            mid: track_arc.mid,
+            rid: None,
+            kind: str0m::media::KeyframeRequestKind::Pli,
+        },
+    );
+
+    match propagated {
+        Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => {
+            assert_eq!(source_relay_id, relay_id);
+        }
+        other => panic!("expected UpstreamKeyframeRequest, got {:?}", other),
+    }
+}
