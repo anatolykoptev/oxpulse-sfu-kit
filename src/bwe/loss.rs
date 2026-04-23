@@ -69,7 +69,7 @@ impl LossEstimator {
             // High loss: multiplicative decrease with cooldown.
             let can_decrease = self
                 .last_decrease
-                .map_or(true, |t| now.duration_since(t) >= LOSS_DECREASE_COOLDOWN);
+                .is_none_or(|t| now.duration_since(t) >= LOSS_DECREASE_COOLDOWN);
             if can_decrease {
                 self.bitrate_bps = (self.bitrate_bps * LOSS_DECREASE_FACTOR).max(MIN_BITRATE_BPS);
                 self.last_decrease = Some(now);

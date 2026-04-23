@@ -20,9 +20,7 @@ impl BandwidthEstimator {
 
     /// Get or create subscriber state for `id`.
     pub(crate) fn get_or_insert(&mut self, id: ClientId) -> &mut PerSubscriber {
-        self.subscribers
-            .entry(id)
-            .or_insert_with(PerSubscriber::new)
+        self.subscribers.entry(id).or_default()
     }
 
     /// Update the native GCC ceiling for a subscriber (from str0m EgressBitrateEstimate).
