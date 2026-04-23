@@ -134,7 +134,7 @@ mod tests {
     fn upgrade_requires_3_consecutive_ticks() {
         let mut p = SubscriberPacer::new();
         let bps = MEDIUM_MIN_BPS + 1_000;
-        pump(&mut p, bps, 2);
+        let _ = pump(&mut p, bps, 2);
         assert_eq!(p.layer(), SfuRid::LOW, "should not upgrade after 2 ticks");
         let a = p.update(bps);
         assert_eq!(a, PacerAction::ChangeLayer(SfuRid::MEDIUM));
@@ -145,7 +145,7 @@ mod tests {
     fn downgrade_is_immediate() {
         let mut p = SubscriberPacer::new();
         // Reach HIGH: 3 ticks to MEDIUM, 3 more to HIGH
-        pump(&mut p, HIGH_MIN_BPS + 100_000, 6);
+        let _ = pump(&mut p, HIGH_MIN_BPS + 100_000, 6);
         assert_eq!(p.layer(), SfuRid::HIGH);
         let a = p.update(MEDIUM_MIN_BPS - 10_000);
         assert_eq!(a, PacerAction::ChangeLayer(SfuRid::LOW));
