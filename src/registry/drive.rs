@@ -86,8 +86,10 @@ impl Registry {
     pub fn tick_active_speaker(&mut self, now: Instant) {
         if let Some(change) = self.detector.tick(now) {
             self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id: change.peer_id });
+            self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {
+                peer_id: change.peer_id,
+                confidence: change.c2_margin,
+            });
         }
     }
 

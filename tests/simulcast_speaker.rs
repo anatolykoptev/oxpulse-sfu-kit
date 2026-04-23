@@ -53,7 +53,7 @@ fn active_speaker_dominance_and_hysteresis_and_skip_self() {
         registry.delivered_active_speaker_count(1),
         registry.delivered_active_speaker_count(2),
     ];
-    registry.fanout_for_tests(&Propagated::ActiveSpeakerChanged { peer_id: 2 });
+    registry.fanout_for_tests(&Propagated::ActiveSpeakerChanged { peer_id: 2, confidence: 0.0 });
     assert_eq!(
         registry.delivered_active_speaker_count(1),
         b0,

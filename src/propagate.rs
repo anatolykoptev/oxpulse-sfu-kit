@@ -70,6 +70,12 @@ pub enum Propagated {
     ActiveSpeakerChanged {
         /// The peer that became the dominant speaker.
         peer_id: u64,
+        /// Medium-window log-ratio confidence margin (C2).
+        ///
+        /// `0.0` means bootstrap election (first speaker in an empty room).
+        /// Values above `2.0` indicate a confident, contested win.
+        /// Consumers may use this to delay UI updates for low-confidence switches.
+        confidence: f64,
     },
 
     /// Egress bandwidth estimate updated for this peer.

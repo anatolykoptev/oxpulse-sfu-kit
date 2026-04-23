@@ -59,8 +59,10 @@ impl Registry {
         let changed = self.detector.tick(now);
         if let Some(ref change) = changed {
             self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate
-                .push_back(Propagated::ActiveSpeakerChanged { peer_id: change.peer_id });
+            self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {
+                peer_id: change.peer_id,
+                confidence: change.c2_margin,
+            });
         }
         self.fanout_pending();
         changed.map(|c| c.peer_id)
