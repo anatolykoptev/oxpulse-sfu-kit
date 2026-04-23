@@ -127,6 +127,15 @@ impl Registry {
         self.to_propagate.drain(..).collect()
     }
 
+
+    /// Mutable access to the clients slice — for tests that need to call
+    /// per-client methods (like `incoming_keyframe_req_for_tests`) without
+    /// running the full poll loop.
+    #[doc(hidden)]
+    pub fn clients_mut_for_tests(&mut self) -> &mut [crate::client::Client] {
+        &mut self.clients
+    }
+
     /// Drive a subscriber's pacer directly --- for tests that cannot simulate TWCC.
     #[cfg(all(any(test, feature = "test-utils"), feature = "pacer"))]
     #[doc(hidden)]

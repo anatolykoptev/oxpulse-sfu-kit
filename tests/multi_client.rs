@@ -308,3 +308,58 @@ fn emit_publisher_layer_hints_emits_upstream_variant_for_relay_publisher() {
     });
     assert!(found, "expected PublisherLayerHintForUpstream; got: {:?}", hints);
 }
+
+
+#[cfg(feature = "test-utils")]
+#[test]
+fn relay_source_keyframe_is_not_delivered_to_relay_client() {
+    use oxpulse_sfu_kit::client::test_seed::{
+        new_client, seed_track_in_relay, open_track_out_for_tests,
+    };
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin, Propagated, Registry};
+    use str0m::media::MediaKind;
+
+    let mut registry = Registry::new_for_tests();
+
+    // Relay publisher (idx 0).
+    let mut relay = new_client(ClientId(600));
+    relay.set_origin(ClientOrigin::RelayFromSfu("sfu-eu-1".to_string()));
+    let relay_id = relay.id;
+    let track_arc = seed_track_in_relay(&mut relay, 9, MediaKind::Video);
+    registry.insert(relay);
+
+    // Local subscriber (idx 1).
+    let mut sub = new_client(ClientId(601));
+    sub.handle_track_open(std::sync::Arc::downgrade(&track_arc));
+    open_track_out_for_tests(&mut sub, &track_arc);
+    registry.insert(sub);
+
+    // Simulate the subscriber emitting a keyframe request.
+    let kf_prop = registry.clients_mut_for_tests()[1].incoming_keyframe_req_for_tests(
+        str0m::media::KeyframeRequest {
+            mid: track_arc.mid,
+            rid: None,
+            kind: str0m::media::KeyframeRequestKind::Pli,
+        },
+    );
+
+    // Must be UpstreamKeyframeRequest, not a direct PLI/FIR.
+    match &kf_prop {
+        Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => {
+            assert_eq!(*source_relay_id, relay_id,
+                "upstream request must reference the relay client");
+        }
+        other => panic!("expected UpstreamKeyframeRequest, got {:?}", other),
+    }
+
+    // Fanout the event -- relay client must receive no side-effects.
+    // (UpstreamKeyframeRequest is a no-op in fanout; it is for app consumption only.)
+    registry.fanout_for_tests(&kf_prop);
+
+    // Relay client (idx 0) has delivered zero media -- no PLI/FIR was sent to it.
+    assert_eq!(
+        registry.delivered_media_count(0),
+        0,
+        "relay client must not receive any media via fanout after UpstreamKeyframeRequest"
+    );
+}
