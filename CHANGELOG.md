@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-04-22
+
+### Added
+
+- **`pacer` feature** — `SubscriberPacer` with LiveKit-style 3-consecutive-upgrade /
+  instant-downgrade BWE hysteresis. Egress bandwidth estimates from str0m GoogCC
+  automatically adjust `desired_layer` per subscriber. New `PacerAction` enum.
+  New `Propagated::AudioOnlyMode { peer_id, audio_only }` emitted at 80 kbps threshold.
+  `Registry::drive_pacer_for_tests()` (gated `test-utils + pacer`).
+
+- **`av1-dd` feature** — `av1::dependency_descriptor::parse(&[u8]) -> Option<Av1DdInfo>`
+  extracts `temporal_id` / `spatial_id` from the AV1 DD RTP header extension (L3T3
+  template layout). `SfuMediaPayload::av1_dd()` accessor. `Client::set_max_temporal_layer(u8)`
+  per-subscriber cap; packets with `temporal_id > cap` are dropped at fanout.
+  Note: `av1_dd()` returns `None` on str0m 0.18 (DD not yet in `ExtensionValues`);
+  the parser is ready for when str0m surfaces it.
+
+- **`LayerSelector` trait + `BestFitSelector`** — centralises the desired-layer +
+  active-rids forwarding decision; default impl clamps to best available RID ≤ desired.
+
+- **`Propagated::PublisherLayerHint { publisher_id, max_rid }`** — Dynacast-style hint
+  emitted by `Registry::emit_publisher_layer_hints()` when the maximum desired layer
+  across all subscribers changes. Application should relay to publisher via RTCP or
+  signalling.
+
+- **`Propagated::AudioCodecHint { peer_id, opus_red, opus_dred }`** — signal that a
+  subscriber supports Opus RED (RFC 2198) or DRED; application uses this to negotiate
+  codec preferences in SDP or via data-channel.
+
+- **`KeyEpoch`** newtype in the `sframe` module — forwarding seam for the SFrame
+  key-epoch RTP header extension (RFC 9605).
+
+- `Registry::emit_publisher_layer_hints()` — compute and enqueue Dynacast hints
+  based on current subscriber desired layers per publisher.
+
+### Notes
+
+- Zero new external dependencies. All math is `u64` arithmetic or bit manipulation.
+- MSRV unchanged: Rust 1.86.
+- The `pacer` and `av1-dd` features are independent; both can be enabled simultaneously.
+
 ## [0.3.1] - 2026-04-22
 
 ### Polish

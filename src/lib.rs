@@ -54,9 +54,10 @@
 //! # Not included (by design)
 //!
 //! - Signaling (bring your own — WebSocket, HTTP, gRPC)
-//! - TURN server (run coturn, rfc5766-turn-server, or similar)
-//! - Bandwidth estimation beyond what str0m exposes via `Event::EgressBitrateEstimate`
-//! - End-to-end encryption (use SFrame; see the OxPulse Chat reference implementation)
+//! - TURN server (run coturn or similar alongside)
+//! - End-to-end encryption payload processing (use SFrame; see [`sframe::KeyEpoch`])
+//! - Server-side audio/video mixing (MCU mode)
+//! - WHIP / WHEP ingestion endpoints
 //!
 //! # Examples
 //!
