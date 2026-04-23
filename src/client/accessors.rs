@@ -85,7 +85,6 @@ impl Client {
     /// should emit `Propagated::AudioOnlyMode`.
     ///
     /// Only available with the `pacer` feature.
-    #[must_use]
     #[cfg(feature = "pacer")]
     #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
     pub fn drive_pacer(&mut self, bps: u64) -> crate::bwe::PacerAction {
