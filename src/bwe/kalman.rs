@@ -11,7 +11,6 @@ const MEASUREMENT_NOISE_VAR: f64 = 5e-3;
 /// Inter-arrival gradient above this threshold (us) signals overuse/congestion.
 const OVERUSE_THRESHOLD_US: f64 = 12_500.0;
 /// Gradient below this fraction of |estimate| signals underuse (spare capacity).
-const UNDERUSE_THRESHOLD_FACTOR: f64 = -0.1;
 /// Multiplicative decrease factor applied on congestion (AIMD decrease).
 const DECREASE_FACTOR: f64 = 0.85;
 /// Additive increase per rate-control call when not overusing (bps).
