@@ -42,6 +42,9 @@ pub struct Registry {
     /// u64 ms with start at registry creation time (monotonic, not wall-clock).
     #[cfg(feature = "active-speaker")]
     detector_epoch: std::time::Instant,
+    /// Per-subscriber Kalman/loss bandwidth estimator.
+    #[cfg(feature = "kalman-bwe")]
+    pub(crate) bandwidth: crate::bwe::estimator::BandwidthEstimator,
 }
 
 impl Registry {
@@ -55,6 +58,8 @@ impl Registry {
             detector: dominant_speaker::ActiveSpeakerDetector::new(),
             #[cfg(feature = "active-speaker")]
             detector_epoch: std::time::Instant::now(),
+            #[cfg(feature = "kalman-bwe")]
+            bandwidth: crate::bwe::estimator::BandwidthEstimator::new(),
         }
     }
 
@@ -181,5 +186,24 @@ impl Registry {
     #[must_use]
     pub fn peer_audio_scores(&self) -> Vec<(u64, f64, f64, f64)> {
         self.detector.peer_scores()
+    }
+}
+
+#[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+impl Registry {
+    /// Process a TWCC feedback batch for a subscriber.
+    ///
+    /// Call this when str0m emits TWCC feedback for the subscriber's egress path.
+    /// `subscriber` is the peer whose outgoing stream the feedback describes.
+    ///
+    /// Only available with the `kalman-bwe` feature.
+    pub fn on_twcc_feedback(
+        &mut self,
+        subscriber: crate::propagate::ClientId,
+        feedback: &crate::bwe::feedback::TwccFeedback,
+        now: std::time::Instant,
+    ) {
+        self.bandwidth.on_twcc_feedback(subscriber, feedback, now);
     }
 }

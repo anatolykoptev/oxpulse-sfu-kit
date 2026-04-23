@@ -32,6 +32,10 @@ pub struct PerSubscriber {
     pub send_times: HashMap<u64, Instant>,
     /// Arrival time of the last successfully received packet for gradient delta.
     pub last_arrival: Option<Instant>,
+    /// Send time corresponding to `last_arrival` (i.e. the send time of the last
+    /// *received* packet). Tracked separately from `send_times` so that a lost
+    /// packet does not corrupt the inter-send delta on the next received packet.
+    pub last_send_for_received: Option<Instant>,
     /// Kalman-filtered delay-based rate estimator.
     pub delay: DelayEstimator,
     /// Loss-window-based rate estimator.
@@ -50,6 +54,7 @@ impl PerSubscriber {
         Self {
             send_times: HashMap::new(),
             last_arrival: None,
+            last_send_for_received: None,
             delay: DelayEstimator::new(INITIAL_BITRATE_BPS),
             loss: LossEstimator::new(INITIAL_BITRATE_BPS),
             rtt: None,
