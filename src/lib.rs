@@ -80,6 +80,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod bandwidth;
+pub mod cc;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub mod bwe;
@@ -104,6 +105,7 @@ pub mod sframe;
 pub mod udp_loop;
 
 pub use bandwidth::BandwidthEstimate;
+pub use cc::{CongestionControl, DefaultGoogCC};
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::PacerAction;
