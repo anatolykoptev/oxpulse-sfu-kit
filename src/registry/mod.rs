@@ -140,11 +140,14 @@ impl Registry {
     /// `level_raw` is 0–127 dBov (0 = loud, 127 = silent). Call this for every
     /// audio RTP packet received from `peer_id` after parsing the audio-level
     /// RTP header extension. Only available with the `active-speaker` feature.
+    ///
+    /// Levels for relay clients (`Client::is_relay()`) are silently ignored —
+    /// relay audio belongs to the upstream room's election, not this one.
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
         // Relay clients are excluded from speaker election; ignore their audio levels.
-        if self.clients.iter().find(|c| *c.id == peer_id).map_or(false, |c| c.is_relay()) {
+        if self.clients.iter().any(|c| *c.id == peer_id && c.is_relay()) {
             return;
         }
         let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;

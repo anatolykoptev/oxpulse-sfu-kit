@@ -48,7 +48,7 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     pub fn inject_audio_level_for_tests(&mut self, peer_id: u64, level: u8, now: Instant) {
         // Mirror the production guard: relay clients are excluded from the detector.
-        if self.clients.iter().find(|c| *c.id == peer_id).map_or(false, |c| c.is_relay()) {
+        if self.clients.iter().any(|c| *c.id == peer_id && c.is_relay()) {
             return;
         }
         let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
