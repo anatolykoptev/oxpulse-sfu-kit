@@ -1,6 +1,8 @@
 use crate::ids::SfuRid;
 
-/// Action returned by [`SubscriberPacer::update`].
+/// Action returned by [].
+#[must_use = "PacerAction must be applied to the subscriber's forwarding state"]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacerAction {
     /// No layer change.
@@ -25,5 +27,8 @@ impl SubscriberPacer {
     pub(crate) fn new() -> Self {
         Self { current_layer: SfuRid::LOW, audio_only: false, upgrade_streak: 0 }
     }
-    pub(crate) fn update(&mut self, _bps: u64) -> PacerAction { PacerAction::NoChange }
+    #[allow(clippy::needless_pass_by_ref_mut)] // becomes mutating in Task 2
+    pub(crate) fn update(&mut self, _bps: u64) -> PacerAction {
+        PacerAction::NoChange
+    }
 }

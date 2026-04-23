@@ -80,6 +80,7 @@
 
 pub mod bandwidth;
 #[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub mod bwe;
 pub mod client;
 pub mod config;
@@ -98,6 +99,7 @@ pub mod udp_loop;
 
 pub use bandwidth::BandwidthEstimate;
 #[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::PacerAction;
 pub use client::Client;
 pub use config::SfuConfig;

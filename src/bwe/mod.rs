@@ -1,9 +1,11 @@
-//! Bandwidth-adaptive layer selection (`feature = "pacer"`).
+//! Bandwidth-adaptive layer selection ().
 //!
-//! Each subscriber gets a [`SubscriberPacer`] that watches per-tick BWE
-//! readings and adjusts [`desired_layer`][crate::client::Client::desired_layer]
+//! Each subscriber gets a [] that watches per-tick BWE
+//! readings and adjusts [][crate::client::Client::desired_layer]
 //! with LiveKit-style hysteresis: 3 consecutive ticks above the next-tier
 //! threshold to upgrade, immediate downgrade, hysteretic audio-only mode.
+
+#![allow(dead_code, unused_imports)] // skeleton; wired up in Task 2
 
 mod hysteresis;
 
