@@ -96,8 +96,12 @@ impl Registry {
         }
         #[cfg(feature = "active-speaker")]
         {
-            let now_ms = self.now_ms();
-            self.detector.add_peer(*client.id, now_ms);
+            // Relay clients relay another room's audio — their levels are not
+            // meaningful for this room's dominant-speaker election.
+            if !client.is_relay() {
+                let now_ms = self.now_ms();
+                self.detector.add_peer(*client.id, now_ms);
+            }
         }
         self.metrics.inc_client_connect();
         self.metrics.inc_active_participants();
@@ -139,6 +143,10 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
+        // Relay clients are excluded from speaker election; ignore their audio levels.
+        if self.clients.iter().find(|c| *c.id == peer_id).map_or(false, |c| c.is_relay()) {
+            return;
+        }
         let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
         self.detector.record_level(peer_id, level_raw, now_ms);
     }

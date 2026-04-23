@@ -90,3 +90,39 @@ fn reap_dead_removes_peer_from_detector() {
     let t0 = Instant::now();
     registry.force_active_speaker_tick_for_tests(t0);
 }
+
+#[cfg(all(feature = "test-utils", feature = "active-speaker"))]
+#[test]
+fn relay_client_is_not_elected_dominant_speaker() {
+    use std::time::{Duration, Instant};
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin, Registry};
+
+    let mut registry = Registry::new_for_tests();
+
+    let local = new_client(ClientId(400));
+    let local_id = *local.id;
+    registry.insert(local);
+
+    let mut relay = new_client(ClientId(401));
+    relay.set_origin(ClientOrigin::RelayFromSfu("edge-eu".to_string()));
+    let relay_id = *relay.id;
+    registry.insert(relay);
+
+    let now = Instant::now();
+    // Relay gets the loudest possible audio (0 = max volume).
+    for i in 0..20u64 {
+        registry.inject_audio_level_for_tests(relay_id, 0, now + Duration::from_millis(i * 30));
+    }
+    // Local gets silence.
+    for i in 0..20u64 {
+        registry.inject_audio_level_for_tests(local_id, 127, now + Duration::from_millis(i * 30));
+    }
+
+    let winner = registry.force_active_speaker_tick_for_tests(now + Duration::from_millis(600));
+
+    if let Some(w) = winner {
+        assert_ne!(w, relay_id, "relay client must never be elected dominant speaker");
+    }
+    // None is also acceptable (no winner when only silent peers exist after relay is excluded).
+}
