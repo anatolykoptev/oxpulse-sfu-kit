@@ -23,6 +23,17 @@ inspect the `Propagated` enum. A per-event hook is a candidate for v0.6.
 `registry.insert(client)`. The insert path reads `is_relay()` to skip
 dominant-speaker detector registration.
 
+## RelaySource — cascade SFU topology (✅ Phase 1 complete)
+
+**Partner-edge:** `RelaySource` feature shipped (v0.5.0+). `ClientOrigin::RelayFromSfu` marks relay clients, `UpstreamKeyframeRequest` routes keyframes upstream, relay clients excluded from speaker detector.
+
+**Signaling:** Cascade detection + async relay trigger shipped in oxpulse-chat `feat/rooms` (2026-04-23). `ServerMsg::UpgradeRelay` pushes migration to live peers after 6s settling delay.
+
+**Phase 2 remaining:**
+- ICE path for relay client UDP traffic (currently stub in `relay/client.rs`)
+- Media forwarding from upstream edge to local Registry
+- SFrame key-epoch forwarding through relay hops
+
 ---
 
 ## v0.6.0 — Planned
