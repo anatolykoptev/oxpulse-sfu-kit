@@ -69,7 +69,27 @@ impl Registry {
                             stats: *stats,
                         });
                     }
-                    other => self.to_propagate.push_back(other),
+                    other => {
+                        #[cfg(feature = "active-speaker")]
+                        if let Propagated::MediaData(ref origin, ref data) = other {
+                            // RFC 6464: str0m stores audio_level as negated dBov
+                            // (0 = loudest, -127 = silent). The detector expects
+                            // 0-127 dBov (0 = loud, 127 = silent), so we negate.
+                            // MediaData originates from the current loop \, so
+                            // we check client.is_relay() directly — no second borrow needed.
+                            if let Some(raw) = data.audio_level_raw() {
+                                if !client.is_relay() {
+                                    let level = (-(raw as i16)).clamp(0, 127) as u8;
+                                    let now_ms = self
+                                        .detector_epoch
+                                        .elapsed()
+                                        .as_millis() as u64;
+                                    self.detector.record_level(**origin, level, now_ms);
+                                }
+                            }
+                        }
+                        self.to_propagate.push_back(other);
+                    }
                 }
             }
         }
@@ -122,7 +142,14 @@ impl Registry {
 
     /// Fan out every queued propagated event to the appropriate clients.
     pub fn fanout_pending(&mut self) {
+        #[cfg(feature = "kalman-bwe")]
+        let now = Instant::now();
         while let Some(p) = self.to_propagate.pop_front() {
+            #[cfg(feature = "kalman-bwe")]
+            if let Propagated::ClientBudgetHint(subscriber_id, bps) = &p {
+                self.bandwidth.record_client_hint(*subscriber_id, *bps, now);
+                continue;
+            }
             fanout(&p, &mut self.clients);
         }
     }

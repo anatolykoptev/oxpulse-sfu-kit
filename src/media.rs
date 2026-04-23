@@ -60,6 +60,10 @@ pub struct SfuMediaPayload {
     /// Parsed RFC 9626 Video Frame Marking header extension, if present.
     #[cfg(feature = "vfm")]
     vfm_fm: Option<crate::vfm::FrameMarkingInfo>,
+    /// RFC 6464 audio level from the RTP header extension (str0m negated-dBov).
+    ///
+    /// Stored as "0 = loudest, -127 = silent". None if the extension is absent.
+    audio_level: Option<i8>,
 }
 
 impl SfuMediaPayload {
@@ -121,6 +125,19 @@ impl SfuMediaPayload {
         self.vfm_fm
     }
 
+    /// RFC 6464 audio level from the RTP header extension.
+    ///
+    /// Returns the raw negated-dBov value as stored by str0m:
+    ///  = loudest,  = silent. Returns  if the extension was
+    /// absent or this is a video packet.
+    ///
+    /// To convert to the detector's 0-127 dBov scale (0=loud, 127=silent):
+    /// 
+    #[must_use]
+    pub fn audio_level_raw(&self) -> Option<i8> {
+        self.audio_level
+    }
+
     /// Clone the raw parts needed by str0m's fanout write path.
     ///
     /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
@@ -160,6 +177,7 @@ impl SfuMediaPayload {
             av1_dd: None, // TODO(av1-dd): populate when str0m exposes ExtensionValues::dependency_descriptor
             #[cfg(feature = "vfm")]
             vfm_fm: None, // TODO(vfm): populate when str0m exposes ExtensionValues::frame_marking
+            audio_level: data.ext_vals.audio_level,
         }
     }
 }

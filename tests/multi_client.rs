@@ -393,3 +393,10 @@ fn relay_source_keyframe_is_not_delivered_to_relay_client() {
         "relay client must not receive any media via fanout after UpstreamKeyframeRequest"
     );
 }
+
+#[test]
+fn client_budget_hint_variant_exists() {
+    use oxpulse_sfu_kit::{ClientId, Propagated};
+    let hint = Propagated::ClientBudgetHint(ClientId(77), 500_000u64);
+    assert!(matches!(hint, Propagated::ClientBudgetHint(_, 500_000)));
+}
