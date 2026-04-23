@@ -3,8 +3,8 @@
 //!
 //! Ported from `oxpulse-partner-edge/crates/sfu/src/bandwidth/feedback.rs`.
 
-use std::time::Instant;
 use super::subscriber::PerSubscriber;
+use std::time::Instant;
 
 /// A single packet record from a TWCC feedback report.
 #[derive(Debug, Clone)]
@@ -49,12 +49,8 @@ pub fn ingest_twcc(sub: &mut PerSubscriber, feedback: &TwccFeedback, now: Instan
                 if let (Some(prev_arr), Some(prev_send)) =
                     (sub.last_arrival, sub.last_send_for_received)
                 {
-                    let recv_delta_us = arrival
-                        .duration_since(prev_arr)
-                        .as_micros() as f64;
-                    let send_delta_us = send_t
-                        .duration_since(prev_send)
-                        .as_micros() as f64;
+                    let recv_delta_us = arrival.duration_since(prev_arr).as_micros() as f64;
+                    let send_delta_us = send_t.duration_since(prev_send).as_micros() as f64;
                     let gradient_us = recv_delta_us - send_delta_us;
                     sub.delay.update_kalman(gradient_us);
                 }
@@ -75,14 +71,15 @@ pub fn ingest_twcc(sub: &mut PerSubscriber, feedback: &TwccFeedback, now: Instan
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::subscriber::PerSubscriber;
+    use super::*;
     use std::time::{Duration, Instant};
 
     fn make_send_times(base: Instant, seqs: &[u64], interval_ms: u64) -> PerSubscriber {
         let mut sub = PerSubscriber::new();
         for (i, &seq) in seqs.iter().enumerate() {
-            sub.send_times.insert(seq, base + Duration::from_millis(i as u64 * interval_ms));
+            sub.send_times
+                .insert(seq, base + Duration::from_millis(i as u64 * interval_ms));
         }
         sub
     }
@@ -95,19 +92,25 @@ mod tests {
 
         // Packets arrive with increasing delay (+5ms per packet after first)
         let feedback = TwccFeedback {
-            samples: seqs.iter().enumerate().map(|(i, &seq)| TwccSample {
-                seq,
-                // seq 1 arrives at +15ms; each subsequent arrives +15ms later than expected
-                arrival: Some(base + Duration::from_millis(15 + i as u64 * 15)),
-            }).collect(),
+            samples: seqs
+                .iter()
+                .enumerate()
+                .map(|(i, &seq)| TwccSample {
+                    seq,
+                    // seq 1 arrives at +15ms; each subsequent arrives +15ms later than expected
+                    arrival: Some(base + Duration::from_millis(15 + i as u64 * 15)),
+                })
+                .collect(),
         };
 
         let before = sub.delay.filtered_gradient_us();
         ingest_twcc(&mut sub, &feedback, base + Duration::from_millis(90));
         let after = sub.delay.filtered_gradient_us();
         // Growing inter-arrival delay -> positive gradient (congestion signal)
-        assert!(after > before || after > 0.0,
-            "expected Kalman to pick up positive gradient; before={before}, after={after}");
+        assert!(
+            after > before || after > 0.0,
+            "expected Kalman to pick up positive gradient; before={before}, after={after}"
+        );
     }
 
     #[test]
@@ -116,17 +119,27 @@ mod tests {
         let mut sub = PerSubscriber::new();
         // seq 1 sent
         sub.send_times.insert(1u64, base);
-        sub.send_times.insert(2u64, base + Duration::from_millis(10));
+        sub.send_times
+            .insert(2u64, base + Duration::from_millis(10));
 
         let feedback = TwccFeedback {
             samples: vec![
-                TwccSample { seq: 1, arrival: Some(base + Duration::from_millis(15)) },
-                TwccSample { seq: 2, arrival: None }, // lost
+                TwccSample {
+                    seq: 1,
+                    arrival: Some(base + Duration::from_millis(15)),
+                },
+                TwccSample {
+                    seq: 2,
+                    arrival: None,
+                }, // lost
             ],
         };
 
         ingest_twcc(&mut sub, &feedback, base + Duration::from_millis(30));
-        assert!(sub.loss.loss_fraction() > 0.0, "lost packet should be recorded");
+        assert!(
+            sub.loss.loss_fraction() > 0.0,
+            "lost packet should be recorded"
+        );
     }
 
     #[test]
@@ -137,17 +150,23 @@ mod tests {
 
         // Perfect uniform arrival: same 10ms spacing -> gradient ~0
         let feedback = TwccFeedback {
-            samples: seqs.iter().enumerate().map(|(i, &seq)| TwccSample {
-                seq,
-                arrival: Some(base + Duration::from_millis(20 + i as u64 * 10)),
-            }).collect(),
+            samples: seqs
+                .iter()
+                .enumerate()
+                .map(|(i, &seq)| TwccSample {
+                    seq,
+                    arrival: Some(base + Duration::from_millis(20 + i as u64 * 10)),
+                })
+                .collect(),
         };
 
         ingest_twcc(&mut sub, &feedback, base + Duration::from_millis(70));
         let gradient = sub.delay.filtered_gradient_us();
         // Should be close to 0 (within Kalman noise)
-        assert!(gradient.abs() < 5_000.0,
-            "uniform spacing should give ~0 gradient, got {gradient}");
+        assert!(
+            gradient.abs() < 5_000.0,
+            "uniform spacing should give ~0 gradient, got {gradient}"
+        );
     }
 
     /// Verify that a lost packet in the middle of a batch does not corrupt the
@@ -168,11 +187,26 @@ mod tests {
         // arrive: 5  15  -   35  45 ms  (offset +5ms constant, spacing 10ms)
         let feedback = TwccFeedback {
             samples: vec![
-                TwccSample { seq: 1, arrival: Some(base + Duration::from_millis(5)) },
-                TwccSample { seq: 2, arrival: Some(base + Duration::from_millis(15)) },
-                TwccSample { seq: 3, arrival: None }, // lost
-                TwccSample { seq: 4, arrival: Some(base + Duration::from_millis(35)) },
-                TwccSample { seq: 5, arrival: Some(base + Duration::from_millis(45)) },
+                TwccSample {
+                    seq: 1,
+                    arrival: Some(base + Duration::from_millis(5)),
+                },
+                TwccSample {
+                    seq: 2,
+                    arrival: Some(base + Duration::from_millis(15)),
+                },
+                TwccSample {
+                    seq: 3,
+                    arrival: None,
+                }, // lost
+                TwccSample {
+                    seq: 4,
+                    arrival: Some(base + Duration::from_millis(35)),
+                },
+                TwccSample {
+                    seq: 5,
+                    arrival: Some(base + Duration::from_millis(45)),
+                },
             ],
         };
 
@@ -181,7 +215,9 @@ mod tests {
         // If the bug were present, seq4 would compute recv_delta=35-15=20ms but
         // send_delta=30-20=10ms -> gradient=+10ms phantom congestion.
         // With the fix, recv_delta=35-15=20ms, send_delta=30-10=20ms -> gradient=0.
-        assert!(gradient.abs() < 5_000.0,
-            "lost packet should not corrupt gradient; got {gradient} us");
+        assert!(
+            gradient.abs() < 5_000.0,
+            "lost packet should not corrupt gradient; got {gradient} us"
+        );
     }
 }

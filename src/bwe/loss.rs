@@ -2,9 +2,9 @@
 //!
 //! Ported from `oxpulse-partner-edge/crates/sfu/src/bandwidth/loss.rs`.
 
+use super::kalman::{MAX_BITRATE_BPS, MIN_BITRATE_BPS};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
-use super::kalman::{MAX_BITRATE_BPS, MIN_BITRATE_BPS};
 
 /// Sliding window size in packets.
 const LOSS_WINDOW: usize = 64;
@@ -27,7 +27,7 @@ const LOSS_INCREASE_BPS: f64 = 5_000.0;
 /// - 2%-10%: hold current rate.
 #[derive(Debug)]
 pub struct LossEstimator {
-    window: VecDeque<bool>,   // true = received, false = lost
+    window: VecDeque<bool>, // true = received, false = lost
     bitrate_bps: f64,
     last_decrease: Option<Instant>,
 }

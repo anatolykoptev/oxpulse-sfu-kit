@@ -421,7 +421,12 @@ fn kalman_bwe_drives_layer_selection_via_update_pacer_layers() {
 
     // Subscriber defaults to LOW.
     assert_eq!(
-        registry.clients().iter().find(|c| c.id == sub_id).unwrap().desired_layer(),
+        registry
+            .clients()
+            .iter()
+            .find(|c| c.id == sub_id)
+            .unwrap()
+            .desired_layer(),
         SfuRid::LOW,
         "should start at LOW"
     );
@@ -438,7 +443,12 @@ fn kalman_bwe_drives_layer_selection_via_update_pacer_layers() {
         registry.update_pacer_layers(pub_id);
     }
 
-    let desired = registry.clients().iter().find(|c| c.id == sub_id).unwrap().desired_layer();
+    let desired = registry
+        .clients()
+        .iter()
+        .find(|c| c.id == sub_id)
+        .unwrap()
+        .desired_layer();
     // With 2 Mbps estimate the pacer should reach MEDIUM or HIGH.
     assert!(
         desired == SfuRid::MEDIUM || desired == SfuRid::HIGH,

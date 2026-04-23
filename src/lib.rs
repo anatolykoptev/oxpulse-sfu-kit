@@ -112,12 +112,12 @@ pub mod vfm;
 #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
 pub use av1::Av1DdInfo;
 pub use bandwidth::BandwidthEstimate;
-#[cfg(feature = "pacer")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
-pub use bwe::PacerAction;
 #[cfg(feature = "kalman-bwe")]
 #[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
 pub use bwe::feedback::{TwccFeedback, TwccSample};
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub use bwe::PacerAction;
 pub use cc::{CongestionControl, DefaultGoogCC};
 pub use client::Client;
 pub use config::SfuConfig;

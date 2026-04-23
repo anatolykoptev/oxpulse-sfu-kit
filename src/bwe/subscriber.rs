@@ -132,7 +132,10 @@ mod tests {
         let mut sub = PerSubscriber::new();
         sub.delay = DelayEstimator::new(2_000_000.0);
         sub.loss = LossEstimator::new(2_000_000.0);
-        sub.client_hint = Some(ClientHint { bps: 400_000, received_at: now });
+        sub.client_hint = Some(ClientHint {
+            bps: 400_000,
+            received_at: now,
+        });
         let combined = sub.combined_bps(now);
         assert!(
             combined <= 400_100.0,
@@ -147,7 +150,10 @@ mod tests {
         let mut sub = PerSubscriber::new();
         sub.delay = DelayEstimator::new(2_000_000.0);
         sub.loss = LossEstimator::new(2_000_000.0);
-        sub.client_hint = Some(ClientHint { bps: 100, received_at: past }); // absurdly small
+        sub.client_hint = Some(ClientHint {
+            bps: 100,
+            received_at: past,
+        }); // absurdly small
         let combined = sub.combined_bps(now);
         // Hint is stale -> should not cap at 100 bps
         assert!(

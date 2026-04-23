@@ -41,12 +41,12 @@ pub(crate) const HIGH_MIN_BPS: u64 = 700_000;
 pub(crate) const UPGRADE_STREAK: u8 = 3;
 
 #[cfg(feature = "kalman-bwe")]
+pub mod estimator;
+#[cfg(feature = "kalman-bwe")]
+pub mod feedback;
+#[cfg(feature = "kalman-bwe")]
 pub mod kalman;
 #[cfg(feature = "kalman-bwe")]
 pub mod loss;
 #[cfg(feature = "kalman-bwe")]
 pub mod subscriber;
-#[cfg(feature = "kalman-bwe")]
-pub mod feedback;
-#[cfg(feature = "kalman-bwe")]
-pub mod estimator;

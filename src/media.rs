@@ -132,7 +132,7 @@ impl SfuMediaPayload {
     /// absent or this is a video packet.
     ///
     /// To convert to the detector's 0-127 dBov scale (0=loud, 127=silent):
-    /// 
+    ///
     #[must_use]
     pub fn audio_level_raw(&self) -> Option<i8> {
         self.audio_level

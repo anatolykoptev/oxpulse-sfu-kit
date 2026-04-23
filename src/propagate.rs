@@ -121,7 +121,7 @@ pub enum Propagated {
         u64,
     ),
 
-        /// RTCP-derived stats updated for this peer.
+    /// RTCP-derived stats updated for this peer.
     ///
     /// Derived from str0m's `Event::PeerStats` (emitted ~1 Hz). Contains
     /// loss fraction and RTT; jitter is not available from the per-peer aggregate

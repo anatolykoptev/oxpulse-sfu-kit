@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use crate::propagate::ClientId;
 use super::subscriber::{ClientHint, PerSubscriber};
+use crate::propagate::ClientId;
 
 /// Per-room bandwidth estimator: one `PerSubscriber` entry per connected peer.
 #[derive(Debug, Default)]
@@ -20,7 +20,9 @@ impl BandwidthEstimator {
 
     /// Get or create subscriber state for `id`.
     pub(crate) fn get_or_insert(&mut self, id: ClientId) -> &mut PerSubscriber {
-        self.subscribers.entry(id).or_insert_with(PerSubscriber::new)
+        self.subscribers
+            .entry(id)
+            .or_insert_with(PerSubscriber::new)
     }
 
     /// Update the native GCC ceiling for a subscriber (from str0m EgressBitrateEstimate).
@@ -30,7 +32,10 @@ impl BandwidthEstimator {
 
     /// Record a browser-reported budget hint (from DataChannel {"type":"budget","bps":N}).
     pub fn record_client_hint(&mut self, subscriber: ClientId, bps: u64, now: Instant) {
-        self.get_or_insert(subscriber).client_hint = Some(ClientHint { bps, received_at: now });
+        self.get_or_insert(subscriber).client_hint = Some(ClientHint {
+            bps,
+            received_at: now,
+        });
     }
 
     /// Combined bitrate estimate for `subscriber`, or `None` if no state exists yet.
@@ -113,7 +118,7 @@ mod tests {
     }
 }
 
-use super::feedback::{TwccFeedback, ingest_twcc};
+use super::feedback::{ingest_twcc, TwccFeedback};
 
 impl BandwidthEstimator {
     /// Process a TWCC feedback batch for a subscriber.
@@ -121,7 +126,12 @@ impl BandwidthEstimator {
     /// Feeds the feedback into the Kalman delay estimator and loss estimator.
     /// Must be called after [`record_send_time`][Self::record_send_time] has
     /// been called for each RTP packet that was sent to this subscriber.
-    pub fn on_twcc_feedback(&mut self, subscriber: ClientId, feedback: &TwccFeedback, now: Instant) {
+    pub fn on_twcc_feedback(
+        &mut self,
+        subscriber: ClientId,
+        feedback: &TwccFeedback,
+        now: Instant,
+    ) {
         let sub = self.get_or_insert(subscriber);
         ingest_twcc(sub, feedback, now);
     }

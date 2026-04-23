@@ -80,10 +80,7 @@ impl Registry {
                             if let Some(raw) = data.audio_level_raw() {
                                 if !client.is_relay() {
                                     let level = (-(raw as i16)).clamp(0, 127) as u8;
-                                    let now_ms = self
-                                        .detector_epoch
-                                        .elapsed()
-                                        .as_millis() as u64;
+                                    let now_ms = self.detector_epoch.elapsed().as_millis() as u64;
                                     self.detector.record_level(**origin, level, now_ms);
                                 }
                             }
