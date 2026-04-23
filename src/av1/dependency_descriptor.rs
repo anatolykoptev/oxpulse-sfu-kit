@@ -8,7 +8,10 @@
 //! See also: rheomesh `sfu/src/rtp/dependency_descriptor.rs` (MIT/Apache).
 
 /// Extracted layer IDs from an AV1 Dependency Descriptor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// This struct may gain additional fields in future versions.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Av1DdInfo {
     /// Spatial layer (0 = base).
     pub spatial_id: u8,
