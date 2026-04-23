@@ -1,4 +1,4 @@
-//! Public read/write accessors on [`Client`][super::Client].
+//! Public read/write accessors on [`Client`].
 //!
 //! Separated from the core poll/event loop in `mod.rs` to keep that file
 //! focused on str0m I/O driving.
@@ -80,7 +80,7 @@ impl Client {
 
     /// Feed a new egress BWE reading to this subscriber's pacer.
     ///
-    /// If the action is [`PacerAction::ChangeLayer`], `desired_layer` is updated
+    /// If the action is `PacerAction::ChangeLayer`, `desired_layer` is updated
     /// in-place before returning. For `GoAudioOnly` / `RestoreVideo`, the registry
     /// should emit `Propagated::AudioOnlyMode`.
     ///

@@ -1,7 +1,7 @@
 use super::{AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, UPGRADE_STREAK};
 use crate::ids::SfuRid;
 
-/// Action returned by [`SubscriberPacer::update`].
+/// Action returned by `SubscriberPacer::update`.
 #[must_use = "PacerAction must be applied to the subscriber's forwarding state"]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

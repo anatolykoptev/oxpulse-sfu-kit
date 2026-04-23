@@ -136,7 +136,7 @@ pub enum Propagated {
     },
     /// Hint to the publisher that they may stop encoding layers above `max_rid`.
     ///
-    /// Emitted by [`Registry::emit_publisher_layer_hints`] when the maximum
+    /// Emitted by  when the maximum
     /// desired layer across all subscribers changes. The application should relay
     /// this to the publisher via RTCP or signalling.
     PublisherLayerHint {
@@ -149,7 +149,7 @@ pub enum Propagated {
     /// Hint to the application that the upstream SFU should stop encoding layers
     /// above  for this relay publisher.
     ///
-    /// Emitted by [] when the maximum
+    /// Emitted by  when the maximum
     /// desired layer across all subscribers of a relay-originated publisher changes.
     /// The application must forward this via its inter-SFU signalling channel.
     PublisherLayerHintForUpstream {
