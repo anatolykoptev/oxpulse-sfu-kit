@@ -47,7 +47,8 @@ impl Registry {
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn inject_audio_level_for_tests(&mut self, peer_id: u64, level: u8, now: Instant) {
-        self.detector.record_level(peer_id, level, now);
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        self.detector.record_level(peer_id, level, now_ms);
     }
 
     /// Force an ASO tick and drain any fanout the detector queued.
@@ -56,7 +57,8 @@ impl Registry {
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn force_active_speaker_tick_for_tests(&mut self, now: Instant) -> Option<u64> {
-        let changed = self.detector.tick(now);
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        let changed = self.detector.tick(now_ms);
         if let Some(ref change) = changed {
             self.metrics.inc_dominant_speaker_changes();
             self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {

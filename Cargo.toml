@@ -40,7 +40,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "
 tracing = "0.1"
 anyhow = "1"
 
-dominant-speaker = { package = "rust-dominant-speaker", version = "0.2", optional = true }
+dominant-speaker = { package = "rust-dominant-speaker", version = "0.3", optional = true }
 prometheus = { version = "0.13", default-features = false, optional = true }
 
 [dev-dependencies]

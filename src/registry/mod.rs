@@ -38,6 +38,10 @@ pub struct Registry {
     pub(super) metrics: Arc<SfuMetrics>,
     #[cfg(feature = "active-speaker")]
     pub(super) detector: dominant_speaker::ActiveSpeakerDetector,
+    /// Fixed epoch for converting  to u64 ms for the speaker detector.
+    /// u64 ms with start at registry creation time (monotonic, not wall-clock).
+    #[cfg(feature = "active-speaker")]
+    detector_epoch: std::time::Instant,
 }
 
 impl Registry {
@@ -49,6 +53,8 @@ impl Registry {
             metrics,
             #[cfg(feature = "active-speaker")]
             detector: dominant_speaker::ActiveSpeakerDetector::new(),
+            #[cfg(feature = "active-speaker")]
+            detector_epoch: std::time::Instant::now(),
         }
     }
 
@@ -89,7 +95,10 @@ impl Registry {
             client.handle_track_open(std::sync::Arc::downgrade(&entry.id));
         }
         #[cfg(feature = "active-speaker")]
-        self.detector.add_peer(*client.id, Instant::now());
+        {
+            let now_ms = self.now_ms();
+            self.detector.add_peer(*client.id, now_ms);
+        }
         self.metrics.inc_client_connect();
         self.metrics.inc_active_participants();
         self.clients.push(client);
@@ -130,7 +139,17 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
-        self.detector.record_level(peer_id, level_raw, now);
+        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        self.detector.record_level(peer_id, level_raw, now_ms);
+    }
+
+    /// Monotonic millisecond timestamp relative to the registry epoch.
+    ///
+    /// Used internally to convert  values to the u64 ms the
+    /// dominant-speaker detector requires (v0.3 API).
+    #[cfg(feature = "active-speaker")]
+    fn now_ms(&self) -> u64 {
+        self.detector_epoch.elapsed().as_millis() as u64
     }
 
     /// Return raw activity scores for all non-paused peers in the room.
