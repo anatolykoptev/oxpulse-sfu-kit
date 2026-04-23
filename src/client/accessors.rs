@@ -154,5 +154,4 @@ impl Client {
     pub fn is_relay(&self) -> bool {
         matches!(self.origin, crate::origin::ClientOrigin::RelayFromSfu(_))
     }
-
 }

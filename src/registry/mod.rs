@@ -147,10 +147,16 @@ impl Registry {
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
         // Relay clients are excluded from speaker election; ignore their audio levels.
-        if self.clients.iter().any(|c| *c.id == peer_id && c.is_relay()) {
+        if self
+            .clients
+            .iter()
+            .any(|c| *c.id == peer_id && c.is_relay())
+        {
             return;
         }
-        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        let now_ms = now
+            .saturating_duration_since(self.detector_epoch)
+            .as_millis() as u64;
         self.detector.record_level(peer_id, level_raw, now_ms);
     }
 

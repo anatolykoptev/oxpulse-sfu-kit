@@ -9,8 +9,8 @@
 
 mod hysteresis;
 
-pub(crate) use hysteresis::SubscriberPacer;
 pub use hysteresis::PacerAction;
+pub(crate) use hysteresis::SubscriberPacer;
 
 /// Below this egress BWE, video is suspended (audio-only mode) — bits/s.
 pub(crate) const AUDIO_ONLY_BPS: u64 = 80_000;

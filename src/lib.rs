@@ -79,58 +79,58 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub mod bandwidth;
-pub mod origin;
-pub mod cc;
-#[cfg(feature = "pacer")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
-pub mod bwe;
 #[cfg(feature = "av1-dd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
 pub mod av1;
-#[cfg(feature = "vfm")]
-#[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
-pub mod vfm;
+pub mod bandwidth;
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub mod bwe;
+pub mod cc;
 pub mod client;
 pub mod config;
 pub mod fanout;
 pub mod ids;
 pub mod keyframe;
+pub mod layer_selector;
 pub mod media;
 pub mod metrics;
 pub mod net;
+pub mod origin;
 pub mod propagate;
 pub mod raw;
 pub mod registry;
 pub mod rtc;
 pub mod rtcp_stats;
-pub mod layer_selector;
 pub mod sframe;
 pub mod udp_loop;
+#[cfg(feature = "vfm")]
+#[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+pub mod vfm;
 
-pub use bandwidth::BandwidthEstimate;
-pub use cc::{CongestionControl, DefaultGoogCC};
-#[cfg(feature = "pacer")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
-pub use bwe::PacerAction;
 #[cfg(feature = "av1-dd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
 pub use av1::Av1DdInfo;
-#[cfg(feature = "vfm")]
-#[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
-pub use vfm::FrameMarkingInfo;
+pub use bandwidth::BandwidthEstimate;
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub use bwe::PacerAction;
+pub use cc::{CongestionControl, DefaultGoogCC};
 pub use client::Client;
-pub use origin::ClientOrigin;
 pub use config::SfuConfig;
 pub use ids::{SfuMid, SfuPt, SfuRid};
 pub use keyframe::{SfuKeyframeKind, SfuKeyframeRequest};
+pub use layer_selector::{BestFitSelector, LayerSelector};
 pub use media::{SfuMediaKind, SfuMediaPayload};
 pub use metrics::SfuMetrics;
 pub use net::{IncomingDatagram, OutgoingDatagram, SfuProtocol};
+pub use origin::ClientOrigin;
 pub use propagate::{ClientId, Propagated};
 pub use registry::Registry;
 pub use rtc::{SfuRtc, SfuRtcBuilder};
 pub use rtcp_stats::PeerRtcpStats;
-pub use layer_selector::{BestFitSelector, LayerSelector};
 pub use sframe::KeyEpoch;
 pub use udp_loop::{run_udp_loop, serve_socket};
+#[cfg(feature = "vfm")]
+#[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
+pub use vfm::FrameMarkingInfo;

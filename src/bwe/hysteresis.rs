@@ -1,5 +1,5 @@
-use crate::ids::SfuRid;
 use super::{AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, UPGRADE_STREAK};
+use crate::ids::SfuRid;
 
 /// Action returned by [`SubscriberPacer::update`].
 #[must_use = "PacerAction must be applied to the subscriber's forwarding state"]
@@ -29,7 +29,11 @@ pub(crate) struct SubscriberPacer {
 
 impl SubscriberPacer {
     pub(crate) fn new() -> Self {
-        Self { current_layer: SfuRid::LOW, audio_only: false, upgrade_streak: 0 }
+        Self {
+            current_layer: SfuRid::LOW,
+            audio_only: false,
+            upgrade_streak: 0,
+        }
     }
 
     /// Feed a new egress BWE reading. Returns the action to take (if any).
@@ -76,22 +80,35 @@ impl SubscriberPacer {
     }
 
     #[cfg(test)]
-    fn layer(&self) -> SfuRid { self.current_layer }
+    fn layer(&self) -> SfuRid {
+        self.current_layer
+    }
     #[cfg(test)]
-    fn audio_only(&self) -> bool { self.audio_only }
+    fn audio_only(&self) -> bool {
+        self.audio_only
+    }
 }
 
 fn rank(r: SfuRid) -> u8 {
-    if r == SfuRid::LOW { 0 }
-    else if r == SfuRid::MEDIUM { 1 }
-    else if r == SfuRid::HIGH { 2 }
-    else { unreachable!("unhandled SfuRid in pacer rank") }
+    if r == SfuRid::LOW {
+        0
+    } else if r == SfuRid::MEDIUM {
+        1
+    } else if r == SfuRid::HIGH {
+        2
+    } else {
+        unreachable!("unhandled SfuRid in pacer rank")
+    }
 }
 
 fn layer_for_bps(bps: u64) -> SfuRid {
-    if bps >= HIGH_MIN_BPS { SfuRid::HIGH }
-    else if bps >= MEDIUM_MIN_BPS { SfuRid::MEDIUM }
-    else { SfuRid::LOW }
+    if bps >= HIGH_MIN_BPS {
+        SfuRid::HIGH
+    } else if bps >= MEDIUM_MIN_BPS {
+        SfuRid::MEDIUM
+    } else {
+        SfuRid::LOW
+    }
 }
 
 #[cfg(test)]
@@ -100,7 +117,9 @@ mod tests {
 
     fn pump(p: &mut SubscriberPacer, bps: u64, n: u8) -> PacerAction {
         let mut last = PacerAction::NoChange;
-        for _ in 0..n { last = p.update(bps); }
+        for _ in 0..n {
+            last = p.update(bps);
+        }
         last
     }
 
@@ -143,7 +162,11 @@ mod tests {
         p.update(lo); // drops --- streak resets
         p.update(hi); // streak=1 again
         p.update(hi); // streak=2
-        assert_eq!(p.layer(), SfuRid::LOW, "should NOT have upgraded --- streak reset");
+        assert_eq!(
+            p.layer(),
+            SfuRid::LOW,
+            "should NOT have upgraded --- streak reset"
+        );
     }
 
     #[test]
@@ -173,8 +196,11 @@ mod tests {
         // bps == AUDIO_ONLY_BPS is NOT audio-only (the condition is `bps < AUDIO_ONLY_BPS`)
         let mut p = SubscriberPacer::new();
         let action = p.update(AUDIO_ONLY_BPS); // exactly 80_000
-        assert_ne!(action, PacerAction::GoAudioOnly,
-            "exactly AUDIO_ONLY_BPS should remain in video mode (condition is strictly <)");
+        assert_ne!(
+            action,
+            PacerAction::GoAudioOnly,
+            "exactly AUDIO_ONLY_BPS should remain in video mode (condition is strictly <)"
+        );
     }
 
     #[test]
@@ -193,11 +219,15 @@ mod tests {
         // After RestoreVideo, subscriber is at LOW. Upgrading to MEDIUM still needs 3 ticks.
         let mut p = SubscriberPacer::new();
         p.update(AUDIO_ONLY_BPS - 1); // GoAudioOnly
-        p.update(LOW_MIN_BPS + 1);    // RestoreVideo, now at LOW, streak=0
-        // 2 ticks above MEDIUM threshold --- not enough
+        p.update(LOW_MIN_BPS + 1); // RestoreVideo, now at LOW, streak=0
+                                   // 2 ticks above MEDIUM threshold --- not enough
         p.update(MEDIUM_MIN_BPS + 1);
         p.update(MEDIUM_MIN_BPS + 1);
-        assert_eq!(p.layer(), SfuRid::LOW, "after RestoreVideo, still need 3 ticks to upgrade");
+        assert_eq!(
+            p.layer(),
+            SfuRid::LOW,
+            "after RestoreVideo, still need 3 ticks to upgrade"
+        );
         // 3rd tick upgrades
         let action = p.update(MEDIUM_MIN_BPS + 1);
         assert_eq!(action, PacerAction::ChangeLayer(SfuRid::MEDIUM));
@@ -209,8 +239,11 @@ mod tests {
         let mut p = SubscriberPacer::new();
         p.update(AUDIO_ONLY_BPS - 1); // enter audio-only
         let action = p.update(LOW_MIN_BPS); // exactly LOW_MIN_BPS
-        assert_eq!(action, PacerAction::RestoreVideo,
-            "exactly LOW_MIN_BPS while audio-only should trigger RestoreVideo (condition is >=)");
+        assert_eq!(
+            action,
+            PacerAction::RestoreVideo,
+            "exactly LOW_MIN_BPS while audio-only should trigger RestoreVideo (condition is >=)"
+        );
     }
 
     #[test]
@@ -219,8 +252,11 @@ mod tests {
         let mut p = SubscriberPacer::new();
         p.update(AUDIO_ONLY_BPS - 1); // enter audio-only
         for bps in [AUDIO_ONLY_BPS, AUDIO_ONLY_BPS + 1, LOW_MIN_BPS - 1] {
-            assert_eq!(p.update(bps), PacerAction::NoChange,
-                "bps={bps} in grey zone should be NoChange while audio-only");
+            assert_eq!(
+                p.update(bps),
+                PacerAction::NoChange,
+                "bps={bps} in grey zone should be NoChange while audio-only"
+            );
         }
     }
 
@@ -228,7 +264,9 @@ mod tests {
     fn downgrade_from_medium_resets_streak_so_re_upgrade_needs_3_ticks() {
         let mut p = SubscriberPacer::new();
         // Get to MEDIUM
-        for _ in 0..3 { p.update(MEDIUM_MIN_BPS + 1); }
+        for _ in 0..3 {
+            p.update(MEDIUM_MIN_BPS + 1);
+        }
         assert_eq!(p.layer(), SfuRid::MEDIUM);
         // Downgrade
         p.update(LOW_MIN_BPS + 1);
@@ -236,7 +274,11 @@ mod tests {
         // 2 ticks up --- not enough (streak was reset by downgrade)
         p.update(MEDIUM_MIN_BPS + 1);
         p.update(MEDIUM_MIN_BPS + 1);
-        assert_eq!(p.layer(), SfuRid::LOW, "streak must have reset on downgrade");
+        assert_eq!(
+            p.layer(),
+            SfuRid::LOW,
+            "streak must have reset on downgrade"
+        );
         // 3rd tick --- upgrades again
         p.update(MEDIUM_MIN_BPS + 1);
         assert_eq!(p.layer(), SfuRid::MEDIUM);

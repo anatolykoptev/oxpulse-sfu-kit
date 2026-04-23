@@ -172,7 +172,6 @@ pub enum Propagated {
         /// Subscriber can decode Opus DRED (Deep REDundancy — libopus 0.9+).
         opus_dred: bool,
     },
-
 }
 
 impl Propagated {
@@ -194,9 +193,13 @@ impl Propagated {
             #[cfg(feature = "pacer")]
             Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
             Propagated::PublisherLayerHint { publisher_id, .. } => Some(*publisher_id),
-            Propagated::PublisherLayerHintForUpstream { publisher_relay_id, .. } => Some(*publisher_relay_id),
+            Propagated::PublisherLayerHintForUpstream {
+                publisher_relay_id, ..
+            } => Some(*publisher_relay_id),
             Propagated::AudioCodecHint { peer_id, .. } => Some(*peer_id),
-            Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => Some(*source_relay_id),
+            Propagated::UpstreamKeyframeRequest {
+                source_relay_id, ..
+            } => Some(*source_relay_id),
         }
     }
 }

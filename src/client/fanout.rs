@@ -28,9 +28,9 @@ impl Client {
             let active: Vec<crate::ids::SfuRid> = self.active_rids();
             let target = BestFitSelector.select(self.desired_layer, &active);
             match data.rid() {
-                None => {}            // non-simulcast: always forward
-                Some(rid) if rid == target => {}  // correct layer
-                Some(_) => return,    // wrong layer — drop
+                None => {}                       // non-simulcast: always forward
+                Some(rid) if rid == target => {} // correct layer
+                Some(_) => return,               // wrong layer — drop
             }
         }
 

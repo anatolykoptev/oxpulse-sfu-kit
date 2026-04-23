@@ -30,7 +30,13 @@ impl LayerSelector for BestFitSelector {
             return desired;
         }
         let rank = |r: SfuRid| -> u8 {
-            if r == SfuRid::LOW { 0 } else if r == SfuRid::MEDIUM { 1 } else { 2 }
+            if r == SfuRid::LOW {
+                0
+            } else if r == SfuRid::MEDIUM {
+                1
+            } else {
+                2
+            }
         };
         let desired_rank = rank(desired);
         // Best active RID that is ≤ desired (highest rank within that bound).
@@ -41,7 +47,11 @@ impl LayerSelector for BestFitSelector {
             .max_by_key(|&r| rank(r));
         best_below.unwrap_or_else(|| {
             // All active RIDs are higher than desired — pick the lowest.
-            active.iter().copied().min_by_key(|&r| rank(r)).unwrap_or(desired)
+            active
+                .iter()
+                .copied()
+                .min_by_key(|&r| rank(r))
+                .unwrap_or(desired)
         })
     }
 }
@@ -58,14 +68,20 @@ mod tests {
     #[test]
     fn selects_matching_layer() {
         let active = [SfuRid::LOW, SfuRid::MEDIUM, SfuRid::HIGH];
-        assert_eq!(BestFitSelector.select(SfuRid::MEDIUM, &active), SfuRid::MEDIUM);
+        assert_eq!(
+            BestFitSelector.select(SfuRid::MEDIUM, &active),
+            SfuRid::MEDIUM
+        );
     }
 
     #[test]
     fn clamps_to_best_below_desired() {
         // Publisher only sends q and h; consumer wants f → gets h.
         let active = [SfuRid::LOW, SfuRid::MEDIUM];
-        assert_eq!(BestFitSelector.select(SfuRid::HIGH, &active), SfuRid::MEDIUM);
+        assert_eq!(
+            BestFitSelector.select(SfuRid::HIGH, &active),
+            SfuRid::MEDIUM
+        );
     }
 
     #[test]
@@ -100,7 +116,10 @@ mod tests {
         // Desired = HIGH, active = [LOW, MEDIUM] -> must return MEDIUM (highest <= HIGH), not LOW
         let active = [SfuRid::LOW, SfuRid::MEDIUM];
         let result = s.select(SfuRid::HIGH, &active);
-        assert_eq!(result, SfuRid::MEDIUM,
-            "BestFitSelector must return the HIGHEST active RID <= desired, not the lowest");
+        assert_eq!(
+            result,
+            SfuRid::MEDIUM,
+            "BestFitSelector must return the HIGHEST active RID <= desired, not the lowest"
+        );
     }
 }

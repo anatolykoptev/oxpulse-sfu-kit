@@ -48,10 +48,16 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     pub fn inject_audio_level_for_tests(&mut self, peer_id: u64, level: u8, now: Instant) {
         // Mirror the production guard: relay clients are excluded from the detector.
-        if self.clients.iter().any(|c| *c.id == peer_id && c.is_relay()) {
+        if self
+            .clients
+            .iter()
+            .any(|c| *c.id == peer_id && c.is_relay())
+        {
             return;
         }
-        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        let now_ms = now
+            .saturating_duration_since(self.detector_epoch)
+            .as_millis() as u64;
         self.detector.record_level(peer_id, level, now_ms);
     }
 
@@ -61,14 +67,17 @@ impl Registry {
     #[doc(hidden)]
     #[cfg(feature = "active-speaker")]
     pub fn force_active_speaker_tick_for_tests(&mut self, now: Instant) -> Option<u64> {
-        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        let now_ms = now
+            .saturating_duration_since(self.detector_epoch)
+            .as_millis() as u64;
         let changed = self.detector.tick(now_ms);
         if let Some(ref change) = changed {
             self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {
-                peer_id: change.peer_id,
-                confidence: change.c2_margin,
-            });
+            self.to_propagate
+                .push_back(Propagated::ActiveSpeakerChanged {
+                    peer_id: change.peer_id,
+                    confidence: change.c2_margin,
+                });
         }
         self.fanout_pending();
         changed.map(|c| c.peer_id)
@@ -127,7 +136,6 @@ impl Registry {
         self.to_propagate.drain(..).collect()
     }
 
-
     /// Mutable access to the clients slice — for tests that need to call
     /// per-client methods (like `incoming_keyframe_req_for_tests`) without
     /// running the full poll loop.
@@ -139,11 +147,7 @@ impl Registry {
     /// Drive a subscriber's pacer directly --- for tests that cannot simulate TWCC.
     #[cfg(all(any(test, feature = "test-utils"), feature = "pacer"))]
     #[doc(hidden)]
-    pub fn drive_pacer_for_tests(
-        &mut self,
-        peer_id: crate::propagate::ClientId,
-        bps: u64,
-    ) {
+    pub fn drive_pacer_for_tests(&mut self, peer_id: crate::propagate::ClientId, bps: u64) {
         use crate::bwe::PacerAction;
         if let Some(client) = self.clients.iter_mut().find(|c| c.id == peer_id) {
             match client.drive_pacer(bps) {

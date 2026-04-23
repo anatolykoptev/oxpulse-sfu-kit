@@ -30,8 +30,8 @@ pub struct Av1DdInfo {
 pub fn parse(bytes: &[u8]) -> Option<Av1DdInfo> {
     let first = *bytes.first()?;
     let start_of_frame = (first >> 7) & 1 == 1;
-    let end_of_frame   = (first >> 6) & 1 == 1;
-    let template_id    = first & 0x3F;
+    let end_of_frame = (first >> 6) & 1 == 1;
+    let template_id = first & 0x3F;
 
     // L3T3 layout: templates 0-8, spatial = id/3, temporal = id%3.
     // Unknown template IDs fall back to base layer (safe pass-through).
@@ -41,7 +41,12 @@ pub fn parse(bytes: &[u8]) -> Option<Av1DdInfo> {
         (0, 0)
     };
 
-    Some(Av1DdInfo { spatial_id, temporal_id, start_of_frame, end_of_frame })
+    Some(Av1DdInfo {
+        spatial_id,
+        temporal_id,
+        start_of_frame,
+        end_of_frame,
+    })
 }
 
 #[cfg(test)]
@@ -116,10 +121,16 @@ mod tests {
         for (template_id, (exp_spatial, exp_temporal)) in expected.iter().enumerate() {
             let byte = make_byte(false, false, template_id as u8);
             let info = parse(&[byte]).unwrap();
-            assert_eq!(info.spatial_id, *exp_spatial,
-                "template {template_id}: expected spatial {exp_spatial}, got {}", info.spatial_id);
-            assert_eq!(info.temporal_id, *exp_temporal,
-                "template {template_id}: expected temporal {exp_temporal}, got {}", info.temporal_id);
+            assert_eq!(
+                info.spatial_id, *exp_spatial,
+                "template {template_id}: expected spatial {exp_spatial}, got {}",
+                info.spatial_id
+            );
+            assert_eq!(
+                info.temporal_id, *exp_temporal,
+                "template {template_id}: expected temporal {exp_temporal}, got {}",
+                info.temporal_id
+            );
         }
     }
 
@@ -128,13 +139,19 @@ mod tests {
         // template 8 = S2T2; template 9 = fallback (0,0)
         let byte8 = make_byte(false, false, 8);
         let info8 = parse(&[byte8]).unwrap();
-        assert_eq!((info8.spatial_id, info8.temporal_id), (2, 2),
-            "template 8 must map to S2T2");
+        assert_eq!(
+            (info8.spatial_id, info8.temporal_id),
+            (2, 2),
+            "template 8 must map to S2T2"
+        );
 
         let byte9 = make_byte(false, false, 9);
         let info9 = parse(&[byte9]).unwrap();
-        assert_eq!((info9.spatial_id, info9.temporal_id), (0, 0),
-            "template 9 is out of L3T3 range, must fall back to S0T0");
+        assert_eq!(
+            (info9.spatial_id, info9.temporal_id),
+            (0, 0),
+            "template 9 is out of L3T3 range, must fall back to S0T0"
+        );
     }
 
     #[test]

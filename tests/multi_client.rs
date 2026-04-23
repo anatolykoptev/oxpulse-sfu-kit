@@ -134,7 +134,12 @@ fn pacer_upgrades_layer_after_three_bwe_ticks() {
     registry.insert(client);
 
     assert_eq!(
-        registry.clients().iter().find(|c| c.id == client_id).unwrap().desired_layer(),
+        registry
+            .clients()
+            .iter()
+            .find(|c| c.id == client_id)
+            .unwrap()
+            .desired_layer(),
         SfuRid::LOW,
         "should start at LOW"
     );
@@ -145,7 +150,12 @@ fn pacer_upgrades_layer_after_three_bwe_ticks() {
     }
 
     assert_eq!(
-        registry.clients().iter().find(|c| c.id == client_id).unwrap().desired_layer(),
+        registry
+            .clients()
+            .iter()
+            .find(|c| c.id == client_id)
+            .unwrap()
+            .desired_layer(),
         SfuRid::MEDIUM,
         "should upgrade to MEDIUM after 3 ticks"
     );
@@ -189,31 +199,43 @@ fn key_epoch_accessible() {
 
 #[test]
 fn layer_selector_prefers_medium_over_low_when_both_active() {
-    use oxpulse_sfu_kit::{SfuRid, layer_selector::{BestFitSelector, LayerSelector}};
+    use oxpulse_sfu_kit::{
+        layer_selector::{BestFitSelector, LayerSelector},
+        SfuRid,
+    };
     // Subscriber wants HIGH, publisher sends [LOW, MEDIUM] → selector returns MEDIUM
     let active = [SfuRid::LOW, SfuRid::MEDIUM];
     let result = BestFitSelector.select(SfuRid::HIGH, &active);
-    assert_eq!(result, SfuRid::MEDIUM,
-        "when HIGH is desired but only LOW+MEDIUM available, selector must return MEDIUM");
+    assert_eq!(
+        result,
+        SfuRid::MEDIUM,
+        "when HIGH is desired but only LOW+MEDIUM available, selector must return MEDIUM"
+    );
 }
 
 #[test]
 fn client_is_local_by_default() {
-    use oxpulse_sfu_kit::{ClientId, ClientOrigin};
     use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin};
     let client = new_client(ClientId(200));
-    assert!(!client.is_relay(), "freshly-built client must not be a relay");
+    assert!(
+        !client.is_relay(),
+        "freshly-built client must not be a relay"
+    );
     assert_eq!(client.origin(), &ClientOrigin::Local);
 }
 
 #[test]
 fn set_origin_marks_client_as_relay() {
-    use oxpulse_sfu_kit::{ClientId, ClientOrigin};
     use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin};
     let mut client = new_client(ClientId(201));
     client.set_origin(ClientOrigin::RelayFromSfu("sfu-eu-1".to_string()));
     assert!(client.is_relay());
-    assert_eq!(client.origin(), &ClientOrigin::RelayFromSfu("sfu-eu-1".to_string()));
+    assert_eq!(
+        client.origin(),
+        &ClientOrigin::RelayFromSfu("sfu-eu-1".to_string())
+    );
 }
 
 #[test]
@@ -228,11 +250,12 @@ fn upstream_keyframe_request_variant_exists() {
     };
 }
 
-
 #[cfg(feature = "test-utils")]
 #[test]
 fn keyframe_request_for_relay_track_emits_upstream_variant() {
-    use oxpulse_sfu_kit::client::test_seed::{new_client, seed_track_in_relay, open_track_out_for_tests};
+    use oxpulse_sfu_kit::client::test_seed::{
+        new_client, open_track_out_for_tests, seed_track_in_relay,
+    };
     use oxpulse_sfu_kit::{ClientId, ClientOrigin, Propagated};
     use str0m::media::MediaKind;
 
@@ -246,16 +269,16 @@ fn keyframe_request_for_relay_track_emits_upstream_variant() {
     sub.handle_track_open(std::sync::Arc::downgrade(&track_arc));
     open_track_out_for_tests(&mut sub, &track_arc);
 
-    let propagated = sub.incoming_keyframe_req_for_tests(
-        str0m::media::KeyframeRequest {
-            mid: track_arc.mid,
-            rid: None,
-            kind: str0m::media::KeyframeRequestKind::Pli,
-        },
-    );
+    let propagated = sub.incoming_keyframe_req_for_tests(str0m::media::KeyframeRequest {
+        mid: track_arc.mid,
+        rid: None,
+        kind: str0m::media::KeyframeRequestKind::Pli,
+    });
 
     match propagated {
-        Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => {
+        Propagated::UpstreamKeyframeRequest {
+            source_relay_id, ..
+        } => {
             assert_eq!(source_relay_id, relay_id);
         }
         other => panic!("expected UpstreamKeyframeRequest, got {:?}", other),
@@ -306,15 +329,18 @@ fn emit_publisher_layer_hints_emits_upstream_variant_for_relay_publisher() {
             max_rid,
         } if *publisher_relay_id == relay_id && *max_rid == SfuRid::HIGH)
     });
-    assert!(found, "expected PublisherLayerHintForUpstream; got: {:?}", hints);
+    assert!(
+        found,
+        "expected PublisherLayerHintForUpstream; got: {:?}",
+        hints
+    );
 }
-
 
 #[cfg(feature = "test-utils")]
 #[test]
 fn relay_source_keyframe_is_not_delivered_to_relay_client() {
     use oxpulse_sfu_kit::client::test_seed::{
-        new_client, seed_track_in_relay, open_track_out_for_tests,
+        new_client, open_track_out_for_tests, seed_track_in_relay,
     };
     use oxpulse_sfu_kit::{ClientId, ClientOrigin, Propagated, Registry};
     use str0m::media::MediaKind;
@@ -345,9 +371,13 @@ fn relay_source_keyframe_is_not_delivered_to_relay_client() {
 
     // Must be UpstreamKeyframeRequest, not a direct PLI/FIR.
     match &kf_prop {
-        Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => {
-            assert_eq!(*source_relay_id, relay_id,
-                "upstream request must reference the relay client");
+        Propagated::UpstreamKeyframeRequest {
+            source_relay_id, ..
+        } => {
+            assert_eq!(
+                *source_relay_id, relay_id,
+                "upstream request must reference the relay client"
+            );
         }
         other => panic!("expected UpstreamKeyframeRequest, got {:?}", other),
     }

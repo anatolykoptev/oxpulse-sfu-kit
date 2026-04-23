@@ -84,13 +84,16 @@ impl Registry {
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn tick_active_speaker(&mut self, now: Instant) {
-        let now_ms = now.saturating_duration_since(self.detector_epoch).as_millis() as u64;
+        let now_ms = now
+            .saturating_duration_since(self.detector_epoch)
+            .as_millis() as u64;
         if let Some(change) = self.detector.tick(now_ms) {
             self.metrics.inc_dominant_speaker_changes();
-            self.to_propagate.push_back(Propagated::ActiveSpeakerChanged {
-                peer_id: change.peer_id,
-                confidence: change.c2_margin,
-            });
+            self.to_propagate
+                .push_back(Propagated::ActiveSpeakerChanged {
+                    peer_id: change.peer_id,
+                    confidence: change.c2_margin,
+                });
         }
     }
 
@@ -99,10 +102,14 @@ impl Registry {
     /// Call this periodically (e.g. on the same 300ms tick as `tick_active_speaker`).
     /// Only available with both `active-speaker` and `metrics-prometheus` features.
     #[cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))]
-    #[cfg_attr(docsrs, doc(cfg(all(feature = "active-speaker", feature = "metrics-prometheus"))))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(feature = "active-speaker", feature = "metrics-prometheus")))
+    )]
     pub fn tick_speaker_scores(&mut self) {
         for (peer_id, imm, med, lng) in self.detector.peer_scores() {
-            self.metrics.update_peer_speaker_scores(peer_id, imm, med, lng);
+            self.metrics
+                .update_peer_speaker_scores(peer_id, imm, med, lng);
         }
     }
 
@@ -125,8 +132,8 @@ impl Registry {
     /// Call after [`fanout_pending`][Self::fanout_pending] on any tick where
     /// subscriber desired layers may have changed.
     pub fn emit_publisher_layer_hints(&mut self) {
-        use std::collections::HashMap;
         use crate::client::layer;
+        use std::collections::HashMap;
 
         let mut max_per_publisher: HashMap<ClientId, SfuRid> = HashMap::new();
         for subscriber in &self.clients {
@@ -136,7 +143,13 @@ impl Registry {
                     let publisher_id = track_in.origin;
                     let entry = max_per_publisher.entry(publisher_id).or_insert(layer::LOW);
                     let rank = |r: SfuRid| -> u8 {
-                        if r == SfuRid::LOW { 0 } else if r == SfuRid::MEDIUM { 1 } else { 2 }
+                        if r == SfuRid::LOW {
+                            0
+                        } else if r == SfuRid::MEDIUM {
+                            1
+                        } else {
+                            2
+                        }
                     };
                     if rank(sub_desired) > rank(*entry) {
                         *entry = sub_desired;
@@ -151,10 +164,11 @@ impl Registry {
                 .any(|c| c.id == publisher_id && c.is_relay());
 
             if is_relay {
-                self.to_propagate.push_back(Propagated::PublisherLayerHintForUpstream {
-                    publisher_relay_id: publisher_id,
-                    max_rid,
-                });
+                self.to_propagate
+                    .push_back(Propagated::PublisherLayerHintForUpstream {
+                        publisher_relay_id: publisher_id,
+                        max_rid,
+                    });
             } else {
                 self.to_propagate.push_back(Propagated::PublisherLayerHint {
                     publisher_id,

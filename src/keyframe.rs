@@ -65,7 +65,6 @@ impl SfuKeyframeRequest {
     }
 }
 
-
 #[cfg(any(test, feature = "test-utils"))]
 impl SfuKeyframeRequest {
     /// Construct a keyframe request for tests.

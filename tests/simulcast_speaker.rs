@@ -24,10 +24,19 @@ fn active_speaker_dominance_and_hysteresis_and_skip_self() {
     // Bootstrap: first tick elects some peer (HashMap internals — order not deterministic).
     let t0 = Instant::now();
     registry.force_active_speaker_tick_for_tests(t0);
-    let winner = registry.current_active_speaker().expect("bootstrap elected someone");
-    assert!([1u64, 2, 3].contains(&winner), "bootstrap picked a valid peer");
+    let winner = registry
+        .current_active_speaker()
+        .expect("bootstrap elected someone");
+    assert!(
+        [1u64, 2, 3].contains(&winner),
+        "bootstrap picked a valid peer"
+    );
     let winner_idx = (winner - 1) as usize;
-    assert_eq!(registry.delivered_active_speaker_count(winner_idx), 0, "winner skip-self");
+    assert_eq!(
+        registry.delivered_active_speaker_count(winner_idx),
+        0,
+        "winner skip-self"
+    );
     for idx in 0..3 {
         if idx != winner_idx {
             assert!(
@@ -53,7 +62,10 @@ fn active_speaker_dominance_and_hysteresis_and_skip_self() {
         registry.delivered_active_speaker_count(1),
         registry.delivered_active_speaker_count(2),
     ];
-    registry.fanout_for_tests(&Propagated::ActiveSpeakerChanged { peer_id: 2, confidence: 0.0 });
+    registry.fanout_for_tests(&Propagated::ActiveSpeakerChanged {
+        peer_id: 2,
+        confidence: 0.0,
+    });
     assert_eq!(
         registry.delivered_active_speaker_count(1),
         b0,
@@ -94,9 +106,9 @@ fn reap_dead_removes_peer_from_detector() {
 #[cfg(all(feature = "test-utils", feature = "active-speaker"))]
 #[test]
 fn relay_client_is_not_elected_dominant_speaker() {
-    use std::time::{Duration, Instant};
     use oxpulse_sfu_kit::client::test_seed::new_client;
     use oxpulse_sfu_kit::{ClientId, ClientOrigin, Registry};
+    use std::time::{Duration, Instant};
 
     let mut registry = Registry::new_for_tests();
 
@@ -122,7 +134,10 @@ fn relay_client_is_not_elected_dominant_speaker() {
     let winner = registry.force_active_speaker_tick_for_tests(now + Duration::from_millis(600));
 
     if let Some(w) = winner {
-        assert_ne!(w, relay_id, "relay client must never be elected dominant speaker");
+        assert_ne!(
+            w, relay_id,
+            "relay client must never be elected dominant speaker"
+        );
     }
     // None is also acceptable (no winner when only silent peers exist after relay is excluded).
 }

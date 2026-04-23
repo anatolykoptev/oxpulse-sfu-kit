@@ -40,12 +40,12 @@ pub struct FrameMarkingInfo {
 pub fn parse(bytes: &[u8]) -> Option<FrameMarkingInfo> {
     let b = *bytes.first()?;
     Some(FrameMarkingInfo {
-        start_of_frame:  (b >> 7) & 1 == 1,
-        end_of_frame:    (b >> 6) & 1 == 1,
-        independent:     (b >> 5) & 1 == 1,
-        discardable:     (b >> 4) & 1 == 1,
+        start_of_frame: (b >> 7) & 1 == 1,
+        end_of_frame: (b >> 6) & 1 == 1,
+        independent: (b >> 5) & 1 == 1,
+        discardable: (b >> 4) & 1 == 1,
         base_layer_sync: (b >> 3) & 1 == 1,
-        temporal_id:      b & 0x07,
+        temporal_id: b & 0x07,
     })
 }
 
