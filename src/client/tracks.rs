@@ -28,7 +28,7 @@ pub struct TrackIn {
     ///
     /// Set at track-open time from the publisher's `is_relay()` status.
     /// Used by the subscriber's keyframe-request path to emit
-    /// [`Propagated::UpstreamKeyframeRequest`][crate::Propagated::UpstreamKeyframeRequest]
+    /// `Propagated::UpstreamKeyframeRequest` (added in relay-rerouting task)
     /// instead of a direct PLI/FIR.
     pub relay_source: bool,
 }
