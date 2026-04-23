@@ -82,6 +82,9 @@ pub mod bandwidth;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub mod bwe;
+#[cfg(feature = "av1-dd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+pub mod av1;
 pub mod client;
 pub mod config;
 pub mod fanout;
@@ -101,6 +104,9 @@ pub use bandwidth::BandwidthEstimate;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::PacerAction;
+#[cfg(feature = "av1-dd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+pub use av1::Av1DdInfo;
 pub use client::Client;
 pub use config::SfuConfig;
 pub use ids::{SfuMid, SfuPt, SfuRid};
