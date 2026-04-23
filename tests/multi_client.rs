@@ -196,3 +196,22 @@ fn layer_selector_prefers_medium_over_low_when_both_active() {
     assert_eq!(result, SfuRid::MEDIUM,
         "when HIGH is desired but only LOW+MEDIUM available, selector must return MEDIUM");
 }
+
+#[test]
+fn client_is_local_by_default() {
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin};
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    let client = new_client(ClientId(200));
+    assert!(!client.is_relay(), "freshly-built client must not be a relay");
+    assert_eq!(client.origin(), &ClientOrigin::Local);
+}
+
+#[test]
+fn set_origin_marks_client_as_relay() {
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin};
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    let mut client = new_client(ClientId(201));
+    client.set_origin(ClientOrigin::RelayFromSfu("sfu-eu-1".to_string()));
+    assert!(client.is_relay());
+    assert_eq!(client.origin(), &ClientOrigin::RelayFromSfu("sfu-eu-1".to_string()));
+}

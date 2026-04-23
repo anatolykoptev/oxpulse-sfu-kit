@@ -134,4 +134,25 @@ impl Client {
     pub fn max_vfm_temporal_layer(&self) -> u8 {
         self.max_vfm_temporal_layer
     }
+
+    /// This client's origin (local peer or upstream SFU relay).
+    #[must_use]
+    pub fn origin(&self) -> &crate::origin::ClientOrigin {
+        &self.origin
+    }
+
+    /// Override the client origin.
+    ///
+    /// Must be called **before** [`Registry::insert`][crate::Registry::insert].
+    /// See [`ClientOrigin`][crate::origin::ClientOrigin] for the call-order contract.
+    pub fn set_origin(&mut self, origin: crate::origin::ClientOrigin) {
+        self.origin = origin;
+    }
+
+    /// Returns `true` if this client is a relay connection from another SFU edge.
+    #[must_use]
+    pub fn is_relay(&self) -> bool {
+        matches!(self.origin, crate::origin::ClientOrigin::RelayFromSfu(_))
+    }
+
 }

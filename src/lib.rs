@@ -80,6 +80,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod bandwidth;
+pub mod origin;
 pub mod cc;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
@@ -119,6 +120,7 @@ pub use av1::Av1DdInfo;
 #[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
 pub use vfm::FrameMarkingInfo;
 pub use client::Client;
+pub use origin::ClientOrigin;
 pub use config::SfuConfig;
 pub use ids::{SfuMid, SfuPt, SfuRid};
 pub use keyframe::{SfuKeyframeKind, SfuKeyframeRequest};

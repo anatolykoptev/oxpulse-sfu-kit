@@ -62,6 +62,7 @@ pub fn seed_track_in(client: &mut Client, mid_tag: u8, kind: MediaKind) -> Arc<T
             origin: client.id,
             mid,
             kind,
+            relay_source: false,
         }),
         last_keyframe_request: None,
     };

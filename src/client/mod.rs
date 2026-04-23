@@ -44,6 +44,8 @@ use tracks::{TrackInEntry, TrackOut, TrackOutState};
 pub struct Client {
     /// Process-unique identifier for this peer.
     pub id: ClientId,
+    /// Whether this client is a local peer or an upstream SFU relay.
+    pub(crate) origin: crate::origin::ClientOrigin,
     pub(crate) rtc: Rtc,
     pub(crate) tracks_in: Vec<TrackInEntry>,
     pub(crate) tracks_out: Vec<TrackOut>,
@@ -163,6 +165,7 @@ impl Client {
                 origin: self.id,
                 mid,
                 kind,
+                relay_source: self.is_relay(),
             }),
             last_keyframe_request: None,
         };

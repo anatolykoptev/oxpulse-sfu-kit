@@ -24,6 +24,7 @@ impl Client {
     pub fn new(rtc: SfuRtc, metrics: Arc<SfuMetrics>) -> Self {
         Self {
             id: next_client_id(),
+            origin: crate::origin::ClientOrigin::Local,
             rtc: rtc.0,
             tracks_in: Vec::new(),
             tracks_out: Vec::new(),
