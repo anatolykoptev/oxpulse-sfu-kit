@@ -1,7 +1,7 @@
 use crate::ids::SfuRid;
 use super::{AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, UPGRADE_STREAK};
 
-/// Action returned by [].
+/// Action returned by [`SubscriberPacer::update`].
 #[must_use = "PacerAction must be applied to the subscriber's forwarding state"]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub enum PacerAction {
 /// Per-subscriber hysteretic layer selector.
 ///
 /// Implements LiveKit-style 3-consecutive-upgrade / instant-downgrade.
-/// Feed each BWE reading via [][Self::update]; act on the returned [].
+/// Feed each BWE reading via [`Self::update`]; act on the returned [`PacerAction`].
 #[derive(Debug)]
 pub(crate) struct SubscriberPacer {
     current_layer: SfuRid,
@@ -82,7 +82,10 @@ impl SubscriberPacer {
 }
 
 fn rank(r: SfuRid) -> u8 {
-    if r == SfuRid::LOW { 0 } else if r == SfuRid::MEDIUM { 1 } else { 2 }
+    if r == SfuRid::LOW { 0 }
+    else if r == SfuRid::MEDIUM { 1 }
+    else if r == SfuRid::HIGH { 2 }
+    else { unreachable!("unhandled SfuRid in pacer rank") }
 }
 
 fn layer_for_bps(bps: u64) -> SfuRid {
