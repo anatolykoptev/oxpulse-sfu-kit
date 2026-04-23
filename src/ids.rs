@@ -94,6 +94,12 @@ impl SfuMid {
         self.0
     }
 }
+impl std::str::FromStr for SfuMid {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(str0m::media::Mid::from(s)))
+    }
+}
 
 #[allow(dead_code)]
 impl SfuPt {

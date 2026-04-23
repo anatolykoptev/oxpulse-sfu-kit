@@ -60,6 +60,25 @@ pub enum Propagated {
     /// The fanout dispatcher routes this only to the `source_client`.
     KeyframeRequest(ClientId, SfuKeyframeRequest, ClientId, SfuMid),
 
+    /// A keyframe request that must be forwarded upstream to the origin SFU.
+    ///
+    /// Emitted instead of [`KeyframeRequest`][Self::KeyframeRequest] when a
+    /// subscriber requests a keyframe for a track whose publisher is a relay
+    /// client (`ClientOrigin::RelayFromSfu`). The application must relay this
+    /// request to the upstream SFU via its signalling channel -- the kit cannot
+    /// send PLI/FIR to a relay peer that has no inbound WebRTC negotiation for
+    /// that direction.
+    ///
+    /// Fields: `(source_relay_id, req, source_mid)`.
+    UpstreamKeyframeRequest {
+        /// The relay client whose upstream track needs a keyframe.
+        source_relay_id: ClientId,
+        /// The keyframe request (PLI or FIR).
+        req: SfuKeyframeRequest,
+        /// The track MID on the relay client.
+        source_mid: SfuMid,
+    },
+
     /// Dominant-speaker election changed.
     ///
     /// Emitted by [`Registry::tick_active_speaker`][crate::Registry::tick_active_speaker]
@@ -163,6 +182,7 @@ impl Propagated {
             Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
             Propagated::PublisherLayerHint { publisher_id, .. } => Some(*publisher_id),
             Propagated::AudioCodecHint { peer_id, .. } => Some(*peer_id),
+            Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => Some(*source_relay_id),
         }
     }
 }

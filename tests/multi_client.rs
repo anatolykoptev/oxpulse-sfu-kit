@@ -215,3 +215,15 @@ fn set_origin_marks_client_as_relay() {
     assert!(client.is_relay());
     assert_eq!(client.origin(), &ClientOrigin::RelayFromSfu("sfu-eu-1".to_string()));
 }
+
+#[test]
+fn upstream_keyframe_request_variant_exists() {
+    use oxpulse_sfu_kit::{ClientId, Propagated, SfuKeyframeKind, SfuKeyframeRequest, SfuMid};
+    let mid: SfuMid = "0".parse().expect("valid mid");
+    let req = SfuKeyframeRequest::new_for_tests(mid, None, SfuKeyframeKind::Pli);
+    let _ = Propagated::UpstreamKeyframeRequest {
+        source_relay_id: ClientId(99),
+        req,
+        source_mid: mid,
+    };
+}

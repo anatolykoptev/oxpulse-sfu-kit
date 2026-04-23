@@ -48,7 +48,8 @@ pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
             | Propagated::BandwidthEstimate { .. }
             | Propagated::RtcpStats { .. }
             | Propagated::PublisherLayerHint { .. }
-            | Propagated::AudioCodecHint { .. } => {}
+            | Propagated::AudioCodecHint { .. }
+            | Propagated::UpstreamKeyframeRequest { .. } => {}
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => {}
             #[cfg(feature = "pacer")]
