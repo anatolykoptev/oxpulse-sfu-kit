@@ -96,6 +96,19 @@ pub enum Propagated {
         /// The updated stats snapshot.
         stats: PeerRtcpStats,
     },
+
+    /// Subscriber's egress BWE crossed the audio-only threshold.
+    ///
+    /// When `audio_only = true`, stop forwarding video to this peer.
+    /// When `audio_only = false`, resume. Only emitted with `pacer` feature.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    AudioOnlyMode {
+        /// The subscriber peer.
+        peer_id: ClientId,
+        /// `true` = entered audio-only; `false` = video restored.
+        audio_only: bool,
+    },
 }
 
 impl Propagated {
@@ -114,6 +127,8 @@ impl Propagated {
             Propagated::ActiveSpeakerChanged { .. } => None,
             Propagated::BandwidthEstimate { peer_id, .. }
             | Propagated::RtcpStats { peer_id, .. } => Some(*peer_id),
+            #[cfg(feature = "pacer")]
+            Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
         }
     }
 }

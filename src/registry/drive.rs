@@ -36,6 +36,25 @@ impl Registry {
                             peer_id,
                             estimate: *estimate,
                         });
+                        #[cfg(feature = "pacer")]
+                        {
+                            use crate::bwe::PacerAction;
+                            match client.drive_pacer(estimate.bps) {
+                                PacerAction::GoAudioOnly => {
+                                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                                        peer_id,
+                                        audio_only: true,
+                                    });
+                                }
+                                PacerAction::RestoreVideo => {
+                                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                                        peer_id,
+                                        audio_only: false,
+                                    });
+                                }
+                                PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
+                            }
+                        }
                     }
                     Propagated::RtcpStats { peer_id, ref stats } => {
                         self.metrics.update_peer_rtcp(

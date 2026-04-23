@@ -35,6 +35,8 @@ impl Client {
             delivered_media: AtomicU64::new(0),
             #[cfg(any(test, feature = "test-utils"))]
             delivered_active_speaker: AtomicU64::new(0),
+            #[cfg(feature = "pacer")]
+            pacer: crate::bwe::SubscriberPacer::new(),
         }
     }
 }

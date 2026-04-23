@@ -63,6 +63,9 @@ pub struct Client {
     /// `ActiveSpeakerChanged` deliveries (skip-self check in tests).
     #[cfg(any(test, feature = "test-utils"))]
     pub(crate) delivered_active_speaker: AtomicU64,
+    /// Per-subscriber hysteretic layer pacer driven from egress BWE readings.
+    #[cfg(feature = "pacer")]
+    pub(crate) pacer: crate::bwe::SubscriberPacer,
 }
 
 impl Client {

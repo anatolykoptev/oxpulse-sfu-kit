@@ -86,4 +86,33 @@ impl Registry {
     pub fn reap_dead_for_tests(&mut self) {
         self.reap_dead();
     }
+
+    /// Drive a subscriber's pacer directly --- for tests that cannot simulate TWCC.
+    #[cfg(all(any(test, feature = "test-utils"), feature = "pacer"))]
+    #[doc(hidden)]
+    pub fn drive_pacer_for_tests(
+        &mut self,
+        peer_id: crate::propagate::ClientId,
+        bps: u64,
+    ) {
+        use crate::bwe::PacerAction;
+        use crate::propagate::Propagated;
+        if let Some(client) = self.clients.iter_mut().find(|c| c.id == peer_id) {
+            match client.drive_pacer(bps) {
+                PacerAction::GoAudioOnly => {
+                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                        peer_id,
+                        audio_only: true,
+                    });
+                }
+                PacerAction::RestoreVideo => {
+                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                        peer_id,
+                        audio_only: false,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
 }

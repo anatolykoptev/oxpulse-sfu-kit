@@ -49,6 +49,8 @@ pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
             | Propagated::RtcpStats { .. } => {}
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => {}
+            #[cfg(feature = "pacer")]
+            Propagated::AudioOnlyMode { .. } => {}
         }
     }
 }

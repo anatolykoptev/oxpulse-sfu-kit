@@ -77,4 +77,21 @@ impl Client {
         );
         self.rtc.accepts(&input)
     }
+
+    /// Feed a new egress BWE reading to this subscriber's pacer.
+    ///
+    /// If the action is [`PacerAction::ChangeLayer`], `desired_layer` is updated
+    /// in-place before returning. For `GoAudioOnly` / `RestoreVideo`, the registry
+    /// should emit `Propagated::AudioOnlyMode`.
+    ///
+    /// Only available with the `pacer` feature.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    pub fn drive_pacer(&mut self, bps: u64) -> crate::bwe::PacerAction {
+        let action = self.pacer.update(bps);
+        if let crate::bwe::PacerAction::ChangeLayer(rid) = action {
+            self.set_desired_layer(rid);
+        }
+        action
+    }
 }

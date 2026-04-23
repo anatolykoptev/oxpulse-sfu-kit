@@ -121,3 +121,32 @@ fn simulcast_rid_filter_drops_mismatched_layers() {
     assert_eq!(registry.delivered_media_count(1), 2, "B got non-simulcast");
     assert_eq!(registry.delivered_media_count(2), 3, "C got non-simulcast");
 }
+
+#[cfg(feature = "pacer")]
+#[test]
+fn pacer_upgrades_layer_after_three_bwe_ticks() {
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, Registry, SfuRid};
+
+    let mut registry = Registry::new_for_tests();
+    let client = new_client(ClientId(100));
+    let client_id = client.id;
+    registry.insert(client);
+
+    assert_eq!(
+        registry.clients().iter().find(|c| c.id == client_id).unwrap().desired_layer(),
+        SfuRid::LOW,
+        "should start at LOW"
+    );
+
+    // 3 ticks at 400 kbps (above MEDIUM threshold 350k)
+    for _ in 0..3 {
+        registry.drive_pacer_for_tests(client_id, 400_000);
+    }
+
+    assert_eq!(
+        registry.clients().iter().find(|c| c.id == client_id).unwrap().desired_layer(),
+        SfuRid::MEDIUM,
+        "should upgrade to MEDIUM after 3 ticks"
+    );
+}
