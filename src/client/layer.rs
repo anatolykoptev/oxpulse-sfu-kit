@@ -6,7 +6,6 @@
 //! cost nothing at runtime and match byte-for-byte with `Rid::from("q"|"h"|"f")`.
 
 use crate::ids::SfuRid;
-use crate::media::SfuMediaPayload;
 
 /// LiveKit low-resolution simulcast layer (`q`).
 pub const LOW: SfuRid = SfuRid::LOW;
@@ -15,18 +14,6 @@ pub const MEDIUM: SfuRid = SfuRid::MEDIUM;
 /// LiveKit full-resolution simulcast layer (`f`).
 pub const HIGH: SfuRid = SfuRid::HIGH;
 
-/// Decide whether `data` should be forwarded to a subscriber whose desired
-/// layer is `desired`.
-///
-/// Rules:
-/// - `data.rid() == None` — non-simulcast publisher. Forward unconditionally.
-/// - `data.rid() == Some(x)` — forward only if `x == desired`.
-pub(crate) fn matches(desired: SfuRid, data: &SfuMediaPayload) -> bool {
-    match data.rid() {
-        None => true,
-        Some(rid) => rid == desired,
-    }
-}
 
 #[cfg(test)]
 mod tests {
