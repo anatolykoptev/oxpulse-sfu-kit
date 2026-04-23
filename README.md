@@ -73,6 +73,7 @@ registry.insert(relay_client);
 
 | Flag | What it does |
 |------|--------------|
+| `kalman-bwe` | GoogCC-inspired Kalman delay + loss-based BWE. `BandwidthEstimator` with TWCC ingestion. `Registry::update_pacer_layers` for automatic layer selection. Enable with `pacer` for full adaptive forwarding. |
 | `pacer` | BWE-adaptive layer switching via `SubscriberPacer` (LiveKit-style 3-up/instant-down hysteresis). Adds `Propagated::AudioOnlyMode` at 80 kbps threshold. |
 | `av1-dd` | AV1 Dependency Descriptor parser (`av1::dependency_descriptor`). `SfuMediaPayload::av1_dd()` accessor. `Client::set_max_temporal_layer(u8)` per-subscriber drop gate. |
 | `vfm` | RFC 9626 Video Frame Marking parser for H.264/VP9/HEVC. `SfuMediaPayload::vfm_frame_marking()`. `Client::set_max_vfm_temporal_layer(u8)`. |

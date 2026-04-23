@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-04-23
+
+### Added
+
+- **`kalman-bwe` feature** — GoogCC-inspired bandwidth estimator combining Kalman
+  delay estimation and loss-based rate control, ported from `oxpulse-partner-edge`.
+  Supersedes the simple `pacer` feature hysteresis for production deployments.
+  
+  - `DelayEstimator` — 1D Kalman filter on TWCC inter-arrival delay gradients
+    with AIMD rate control (multiplicative decrease on overuse, additive increase
+    otherwise). Constants tuned to match GoogCC production values.
+  - `LossEstimator` — 64-packet sliding window loss fraction with AIMD.
+  - `PerSubscriber` — combines Kalman + Loss + native GCC ceiling + browser
+    client hint ceiling into a single `combined_bps()`.
+  - `BandwidthEstimator` — per-room state container with `record_native_estimate`,
+    `record_client_hint`, `on_twcc_feedback`, `record_send_time`, `estimate_bps`.
+  - `TwccFeedback` / `TwccSample` — TWCC feedback ingestion, resolves the
+    `CongestionControl` trait gap from v0.4.0 (TWCC bytes now consumed internally).
+  - `Registry::on_twcc_feedback` — exposes TWCC ingestion to the application.
+  - `Registry::update_pacer_layers(origin)` — drives simulcast layer selection
+    from BWE; called automatically on every `MediaData` event (under
+    `kalman-bwe + pacer`).
+
+- **`Propagated::ClientBudgetHint(ClientId, u64)`** — carries browser-reported
+  bandwidth budget from a DataChannel `{"type":"budget","bps":N}` message.
+  Always compiled. Under `kalman-bwe`, feeds `BandwidthEstimator::record_client_hint`.
+
+- **Auto audio-level extraction** — under `active-speaker`, `poll_all` now reads
+  `MediaData.ext_vals.audio_level` (str0m 0.18.1 RFC 6464 extension) and feeds it
+  into the dominant-speaker detector automatically. Applications no longer need to
+  call `Registry::record_audio_level` unless they parse audio levels externally.
+
+- **`SfuMediaPayload::audio_level_raw() -> Option<i8>`** — exposes the raw RFC 6464
+  audio level from the RTP header extension (negated dBov: −127 = loudest, 0 = silent).
+
+### Dependencies
+
+- No new external dependencies. `kalman-bwe` uses only `std`.
+
+### Notes
+
+- MSRV unchanged: Rust 1.86.
+- `kalman-bwe` and `pacer` features are independent; enable both for full adaptive
+  layer selection driven by Kalman BWE.
+- `update_pacer_layers` is gated on `all(kalman-bwe, pacer)` and fires on every
+  `MediaData` event — same cadence as partner-edge's production deployment.
+- The `CongestionControl` trait (v0.4.0 dead seam) now has a working implementation
+  path: TWCC feedback → `on_twcc_feedback` → `BandwidthEstimator`. The trait itself
+  remains a plugin seam; see `docs/ROADMAP.md`.
+
+[0.6.0]: https://github.com/anatolykoptev/oxpulse-sfu-kit/releases/tag/v0.6.0
+
 ## [0.5.0] — 2026-04-22
 
 ### Added
