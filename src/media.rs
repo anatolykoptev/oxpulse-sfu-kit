@@ -54,6 +54,9 @@ pub struct SfuMediaPayload {
     time: MediaTime,
     /// Negotiated codec parameters — required for `writer.match_params` at fanout.
     params: PayloadParams,
+    /// Parsed AV1 Dependency Descriptor info, if the `av1-dd` feature is enabled.
+    #[cfg(feature = "av1-dd")]
+    av1_dd: Option<crate::av1::Av1DdInfo>,
 }
 
 impl SfuMediaPayload {
@@ -93,6 +96,17 @@ impl SfuMediaPayload {
         self.contiguous
     }
 
+    /// Parsed AV1 Dependency Descriptor, if present and the `av1-dd` feature is enabled.
+    ///
+    /// Returns `None` if the packet carries no DD extension, the codec is not AV1,
+    /// or str0m 0.18 does not yet surface the extension in `ExtensionValues`.
+    #[cfg(feature = "av1-dd")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
+    #[must_use]
+    pub fn av1_dd(&self) -> Option<crate::av1::Av1DdInfo> {
+        self.av1_dd
+    }
+
     /// Clone the raw parts needed by str0m's fanout write path.
     ///
     /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
@@ -128,6 +142,8 @@ impl SfuMediaPayload {
             contiguous: data.contiguous,
             time: data.time,
             params: data.params,
+            #[cfg(feature = "av1-dd")]
+            av1_dd: None, // TODO(av1-dd): populate when str0m exposes ExtensionValues::dependency_descriptor
         }
     }
 }
@@ -145,5 +161,13 @@ mod tests {
             let wrapped = SfuMediaKind::from_str0m(k);
             assert_eq!(wrapped.to_str0m(), k);
         }
+    }
+
+    #[cfg(feature = "av1-dd")]
+    #[test]
+    fn av1_dd_accessor_exists() {
+        use crate::av1::Av1DdInfo;
+        // Verify the accessor type signature compiles correctly.
+        let _: fn(&super::SfuMediaPayload) -> Option<Av1DdInfo> = super::SfuMediaPayload::av1_dd;
     }
 }
