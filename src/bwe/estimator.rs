@@ -62,6 +62,41 @@ impl BandwidthEstimator {
     }
 }
 
+use super::feedback::{ingest_twcc, TwccFeedback};
+
+impl BandwidthEstimator {
+    /// Process a TWCC feedback batch for a subscriber.
+    ///
+    /// Feeds the feedback into the Kalman delay estimator and loss estimator.
+    /// Must be called after [][Self::record_send_time] has
+    /// been called for each RTP packet that was sent to this subscriber.
+    pub fn on_twcc_feedback(
+        &mut self,
+        subscriber: ClientId,
+        feedback: &TwccFeedback,
+        now: Instant,
+    ) {
+        let sub = self.get_or_insert(subscriber);
+        ingest_twcc(sub, feedback, now);
+    }
+
+    /// Record the send timestamp for an RTP packet destined for .
+    ///
+    /// Call this when each RTP packet is enqueued. The send time is used to
+    /// compute inter-send deltas when TWCC feedback arrives.
+    pub fn record_send_time(&mut self, subscriber: ClientId, seq: u64, sent_at: Instant) {
+        let sub = self.get_or_insert(subscriber);
+        // Bound the map: evict the oldest entry when it grows too large.
+        const MAX_SEND_TIMES: usize = 512;
+        if sub.send_times.len() >= MAX_SEND_TIMES {
+            if let Some(&oldest_seq) = sub.send_times.keys().min() {
+                sub.send_times.remove(&oldest_seq);
+            }
+        }
+        sub.send_times.insert(seq, sent_at);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
