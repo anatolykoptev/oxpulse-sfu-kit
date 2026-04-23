@@ -20,9 +20,18 @@ impl Client {
     /// [`desired_layer`][Client::desired_layer]) and increments Prometheus
     /// counters for forwarded packets and layer selections.
     pub fn handle_media_data_out(&mut self, origin: ClientId, data: &SfuMediaPayload) {
-        // Drop packets that don't match the desired simulcast layer.
-        if !layer::matches(self.desired_layer, data) {
-            return;
+        // Use LayerSelector to pick the best available RID for this subscriber.
+        // active_rids() is empty until the first video packet arrives — fall back
+        // to the old RID-exact match in that case (BestFitSelector handles empty correctly).
+        {
+            use crate::layer_selector::{BestFitSelector, LayerSelector as _};
+            let active: Vec<crate::ids::SfuRid> = self.active_rids();
+            let target = BestFitSelector.select(self.desired_layer, &active);
+            match data.rid() {
+                None => {}            // non-simulcast: always forward
+                Some(rid) if rid == target => {}  // correct layer
+                Some(_) => return,    // wrong layer — drop
+            }
         }
 
         // Drop AV1 packets whose temporal layer exceeds this subscriber's cap.

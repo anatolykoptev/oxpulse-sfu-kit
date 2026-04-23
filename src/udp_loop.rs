@@ -107,6 +107,7 @@ where
 
         let deadline = registry.poll_all(Instant::now());
         registry.fanout_pending();
+        registry.emit_publisher_layer_hints();
         flush_transmits(&socket, registry).await;
 
         let sleep = deadline

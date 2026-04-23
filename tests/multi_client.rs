@@ -186,3 +186,13 @@ fn key_epoch_accessible() {
     use oxpulse_sfu_kit::KeyEpoch;
     assert_eq!(KeyEpoch::new(7).as_u64(), 7);
 }
+
+#[test]
+fn layer_selector_prefers_medium_over_low_when_both_active() {
+    use oxpulse_sfu_kit::{SfuRid, layer_selector::{BestFitSelector, LayerSelector}};
+    // Subscriber wants HIGH, publisher sends [LOW, MEDIUM] → selector returns MEDIUM
+    let active = [SfuRid::LOW, SfuRid::MEDIUM];
+    let result = BestFitSelector.select(SfuRid::HIGH, &active);
+    assert_eq!(result, SfuRid::MEDIUM,
+        "when HIGH is desired but only LOW+MEDIUM available, selector must return MEDIUM");
+}
