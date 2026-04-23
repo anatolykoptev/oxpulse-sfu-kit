@@ -400,3 +400,49 @@ fn client_budget_hint_variant_exists() {
     let hint = Propagated::ClientBudgetHint(ClientId(77), 500_000u64);
     assert!(matches!(hint, Propagated::ClientBudgetHint(_, 500_000)));
 }
+
+#[cfg(all(feature = "kalman-bwe", feature = "pacer", feature = "test-utils"))]
+#[test]
+fn kalman_bwe_drives_layer_selection_via_update_pacer_layers() {
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, Registry, SfuRid};
+
+    let mut registry = Registry::new_for_tests();
+
+    // Publisher (idx 0).
+    let publisher = new_client(ClientId(800));
+    let pub_id = publisher.id;
+    registry.insert(publisher);
+
+    // Subscriber (idx 1).
+    let subscriber = new_client(ClientId(801));
+    let sub_id = subscriber.id;
+    registry.insert(subscriber);
+
+    // Subscriber defaults to LOW.
+    assert_eq!(
+        registry.clients().iter().find(|c| c.id == sub_id).unwrap().desired_layer(),
+        SfuRid::LOW,
+        "should start at LOW"
+    );
+
+    // Force the Kalman delay and loss estimators to 2 Mbps directly, bypassing
+    // TWCC. `record_native_estimate` acts as a ceiling, not a floor, so it would
+    // leave the estimate at the 300k initial value.
+    registry
+        .bandwidth_mut_for_tests()
+        .force_high_estimate_for_tests(sub_id, 2_000_000.0);
+
+    // Call update_pacer_layers 3 times — pacer streak threshold is 3 ticks.
+    for _ in 0..3 {
+        registry.update_pacer_layers(pub_id);
+    }
+
+    let desired = registry.clients().iter().find(|c| c.id == sub_id).unwrap().desired_layer();
+    // With 2 Mbps estimate the pacer should reach MEDIUM or HIGH.
+    assert!(
+        desired == SfuRid::MEDIUM || desired == SfuRid::HIGH,
+        "expected MEDIUM or HIGH, got {:?}",
+        desired
+    );
+}

@@ -45,6 +45,18 @@ impl BandwidthEstimator {
     pub fn reap_dead(&mut self, subscriber: ClientId) {
         self.subscribers.remove(&subscriber);
     }
+
+    /// Force both the Kalman delay and loss estimators for `subscriber` to report
+    /// `bps`, bypassing TWCC.  Use in tests that need a known estimate without
+    /// simulating real network feedback.
+    #[cfg(any(test, feature = "test-utils"))]
+    #[doc(hidden)]
+    pub fn force_high_estimate_for_tests(&mut self, subscriber: ClientId, bps: f64) {
+        let sub = self.get_or_insert(subscriber);
+        sub.delay = super::kalman::DelayEstimator::new(bps);
+        sub.loss = super::loss::LossEstimator::new(bps);
+        sub.native_estimate_bps = None; // remove ceiling so Kalman/loss dominate
+    }
 }
 
 #[cfg(test)]
