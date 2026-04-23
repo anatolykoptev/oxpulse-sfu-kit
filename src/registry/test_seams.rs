@@ -95,6 +95,38 @@ impl Registry {
         self.reap_dead();
     }
 
+    /// Wire subscriber at `sub_idx` to publisher at `pub_idx` for the track tagged
+    /// with `mid_tag` - forcing the track_out into Open state.
+    ///
+    /// Must be called after both clients are inserted.
+    #[doc(hidden)]
+    pub fn wire_track_for_tests(&mut self, sub_idx: usize, pub_idx: usize, mid_tag: u8) {
+        use str0m::media::Mid;
+        let mid = Mid::from(&*format!("m{mid_tag}"));
+        let track_arc = self.clients[pub_idx]
+            .tracks_in
+            .iter()
+            .find(|e| e.id.mid == mid)
+            .map(|e| e.id.clone())
+            .expect("publisher track not found");
+        self.clients[sub_idx].handle_track_open(std::sync::Arc::downgrade(&track_arc));
+        for track_out in self.clients[sub_idx].tracks_out.iter_mut() {
+            if track_out.track_in.upgrade().as_deref().map(|t| t.mid) == Some(mid) {
+                track_out.state = crate::client::tracks::TrackOutState::Open(mid);
+                return;
+            }
+        }
+    }
+
+    /// Drain the registry's propagation queue and return all events.
+    ///
+    /// Used to inspect what `emit_publisher_layer_hints` produces without
+    /// running `fanout_pending`.
+    #[doc(hidden)]
+    pub fn drain_propagated_for_tests(&mut self) -> Vec<crate::propagate::Propagated> {
+        self.to_propagate.drain(..).collect()
+    }
+
     /// Drive a subscriber's pacer directly --- for tests that cannot simulate TWCC.
     #[cfg(all(any(test, feature = "test-utils"), feature = "pacer"))]
     #[doc(hidden)]

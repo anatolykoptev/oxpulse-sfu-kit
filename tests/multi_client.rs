@@ -261,3 +261,50 @@ fn keyframe_request_for_relay_track_emits_upstream_variant() {
         other => panic!("expected UpstreamKeyframeRequest, got {:?}", other),
     }
 }
+
+#[test]
+fn publisher_layer_hint_for_upstream_variant_exists() {
+    use oxpulse_sfu_kit::{ClientId, Propagated, SfuRid};
+    let _ = Propagated::PublisherLayerHintForUpstream {
+        publisher_relay_id: ClientId(500),
+        max_rid: SfuRid::HIGH,
+    };
+}
+
+#[cfg(feature = "test-utils")]
+#[test]
+fn emit_publisher_layer_hints_emits_upstream_variant_for_relay_publisher() {
+    use oxpulse_sfu_kit::client::test_seed::{new_client, seed_track_in_relay};
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin, Propagated, Registry, SfuRid};
+    use str0m::media::MediaKind;
+
+    let mut registry = Registry::new_for_tests();
+
+    // Relay publisher (idx 0).
+    let mut relay = new_client(ClientId(501));
+    relay.set_origin(ClientOrigin::RelayFromSfu("edge-eu".to_string()));
+    let relay_id = relay.id;
+    let _track = seed_track_in_relay(&mut relay, 7, MediaKind::Video);
+    registry.insert(relay);
+
+    // Local subscriber (idx 1) that wants HIGH.
+    let sub = new_client(ClientId(502));
+    registry.insert(sub);
+    registry.set_desired_layer_for_tests(1, SfuRid::HIGH);
+
+    // Wire subscriber's track_out to relay's track_in.
+    registry.wire_track_for_tests(1, 0, 7);
+
+    // Emit hints.
+    registry.emit_publisher_layer_hints();
+
+    let hints = registry.drain_propagated_for_tests();
+
+    let found = hints.iter().any(|p| {
+        matches!(p, Propagated::PublisherLayerHintForUpstream {
+            publisher_relay_id,
+            max_rid,
+        } if *publisher_relay_id == relay_id && *max_rid == SfuRid::HIGH)
+    });
+    assert!(found, "expected PublisherLayerHintForUpstream; got: {:?}", hints);
+}

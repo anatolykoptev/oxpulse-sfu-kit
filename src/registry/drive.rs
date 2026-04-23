@@ -145,7 +145,22 @@ impl Registry {
             }
         }
         for (publisher_id, max_rid) in max_per_publisher {
-            self.to_propagate.push_back(Propagated::PublisherLayerHint { publisher_id, max_rid });
+            let is_relay = self
+                .clients
+                .iter()
+                .any(|c| c.id == publisher_id && c.is_relay());
+
+            if is_relay {
+                self.to_propagate.push_back(Propagated::PublisherLayerHintForUpstream {
+                    publisher_relay_id: publisher_id,
+                    max_rid,
+                });
+            } else {
+                self.to_propagate.push_back(Propagated::PublisherLayerHint {
+                    publisher_id,
+                    max_rid,
+                });
+            }
         }
     }
 }

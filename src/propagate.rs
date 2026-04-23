@@ -146,6 +146,19 @@ pub enum Propagated {
         max_rid: SfuRid,
     },
 
+    /// Hint to the application that the upstream SFU should stop encoding layers
+    /// above  for this relay publisher.
+    ///
+    /// Emitted by [] when the maximum
+    /// desired layer across all subscribers of a relay-originated publisher changes.
+    /// The application must forward this via its inter-SFU signalling channel.
+    PublisherLayerHintForUpstream {
+        /// The relay client whose upstream publisher should be signalled.
+        publisher_relay_id: ClientId,
+        /// Highest simulcast layer any subscriber of this relay currently wants.
+        max_rid: SfuRid,
+    },
+
     /// Subscriber capability hint for Opus audio codec redundancy.
     ///
     /// Emit to the application signalling layer to negotiate `red/48000/2` in
@@ -181,6 +194,7 @@ impl Propagated {
             #[cfg(feature = "pacer")]
             Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
             Propagated::PublisherLayerHint { publisher_id, .. } => Some(*publisher_id),
+            Propagated::PublisherLayerHintForUpstream { publisher_relay_id, .. } => Some(*publisher_relay_id),
             Propagated::AudioCodecHint { peer_id, .. } => Some(*peer_id),
             Propagated::UpstreamKeyframeRequest { source_relay_id, .. } => Some(*source_relay_id),
         }
