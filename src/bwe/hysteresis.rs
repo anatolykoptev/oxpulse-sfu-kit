@@ -112,6 +112,7 @@ fn layer_for_bps(bps: u64) -> SfuRid {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)] // test calls check side-effects, not return value
 mod tests {
     use super::*;
 
