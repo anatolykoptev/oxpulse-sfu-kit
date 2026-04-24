@@ -36,15 +36,22 @@ dominant-speaker detector registration.
 
 ---
 
-## v0.6.0 — Planned
+## v0.6.0 — kalman-bwe (✅ shipped)
 
-- App-facing event hook (`Registry::set_event_handler`) for relay and Dynacast events.
-- `RelaySource` trait (v0.5 uses a plain `ClientOrigin` enum; v0.6 may add a constructor
-  pattern to prevent the call-order footgun).
-- WHIP ingestion endpoint.
-- SCReAMv2 CC plugin (via `CongestionControl` trait, blocked on str0m TWCC API).
+- **`kalman-bwe` feature** — GoogCC-inspired Kalman delay + loss BWE. `BandwidthEstimator` with TWCC ingestion. `Registry::update_pacer_layers` for automatic layer selection.
+- `Propagated::ClientBudgetHint(ClientId, u64)` — browser DataChannel budget ceiling.
+- Auto audio-level extraction from `MediaData.ext_vals.audio_level` (str0m 0.18, RFC 6464).
+- `SfuMediaPayload::audio_level_raw() -> Option<i8>` accessor.
 
 ---
+
+## v0.7.0 — Planned
+
+- App-facing event hook (`Registry::set_event_handler`) for relay and Dynacast events.
+- ICE path for relay client UDP traffic (Phase 2 cascade relay).
+- Media forwarding from upstream edge to local Registry.
+- SFrame key-epoch forwarding through relay hops.
+- SCReAMv2 CC plugin (blocked on str0m TWCC raw-bytes API).
 
 ## CongestionControl — partially resolved in v0.6.0
 

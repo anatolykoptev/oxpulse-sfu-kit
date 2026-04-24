@@ -437,14 +437,14 @@ Legend: ✅ shipped, 🔜 next, — deferred
 | 5 | ✅ `serve_socket` split from `run_udp_loop` for multi-room usage | Topology | small | Medium | v0.2.0 |
 | 6 | ✅ v0.3 encapsulation pass — all public types hide str0m surface | API | medium | Very High | v0.3.0 |
 | 7 | ✅ `tests/encapsulation_surface.rs` — compile-time API leak guard | API | small | High | v0.3.0 |
-| 8 | 🔜 Port parent's `BandwidthEstimator` + `Pacer` (TWCC → budget → RID selection with hysteresis + audio-only cutoff) behind `feature = "pacer"` | BWE / layer | medium (1 week) | **Very High** — correctness on real networks | v0.4 |
-| 9 | 🔜 AV1 Dependency Descriptor parser (port rheomesh) | SVC | medium (1 week) | High (AV1-SVC near-future default) | v0.4 |
-| 10 | 🔜 Opus RED (RFC 2198) + DRED advertisement / pass-through | Error resilience | small (2-3 d) | High on lossy links | v0.4 |
-| 11 | 🔜 `LayerSelector` trait centralizing desired-layer + BWE + active-rids logic | SVC | small (2 d) | Medium | v0.4 |
-| 12 | 🔜 Define `KeyEpochHeaderExt` RTP header forwarding for SFrame consumers | E2E | small (1-2 d) | Medium | v0.4 |
-| 13 | 🔜 Dynacast-style `Propagated::PublisherLayerHint` | SVC | medium (3-4 d) | Medium-High | v0.4 |
-| 14 | 🔜 `current_top_k` recent-speakers ring in `rust-dominant-speaker` | ASD | small (1 d) | Medium | rust-ds v0.2 |
-| 15 | 🔜 Document RNNoise / ten-vad pre-filter, Opus DRED pass-through, SFrame architecture | docs | small (1-2 d) | Medium | v0.4 |
+| 8 | ✅ Port parent's `BandwidthEstimator` + `Pacer` (TWCC → budget → RID selection with hysteresis + audio-only cutoff) behind `feature = "pacer"` | BWE / layer | medium (1 week) | **Very High** — correctness on real networks | v0.4.0 |
+| 9 | ✅ AV1 Dependency Descriptor parser (port rheomesh) | SVC | medium (1 week) | High (AV1-SVC near-future default) | v0.4.0 |
+| 10 | ✅ Opus RED (RFC 2198) + DRED advertisement / pass-through | Error resilience | small (2-3 d) | High on lossy links | v0.4.0 |
+| 11 | ✅ `LayerSelector` trait centralizing desired-layer + BWE + active-rids logic | SVC | small (2 d) | Medium | v0.4.0 |
+| 12 | ✅ Define `KeyEpochHeaderExt` RTP header forwarding for SFrame consumers | E2E | small (1-2 d) | Medium | v0.4.0 |
+| 13 | ✅ Dynacast-style `Propagated::PublisherLayerHint` | SVC | medium (3-4 d) | Medium-High | v0.4.0 |
+| 14 | ✅ `current_top_k` recent-speakers ring in `rust-dominant-speaker` | ASD | small (1 d) | Medium | rust-ds v0.2.1 |
+| 15 | ✅ Document RNNoise / ten-vad pre-filter, Opus DRED pass-through, SFrame architecture | docs | small (1-2 d) | Medium | v0.4.0 |
 | 16 | MOS via G.107 E-model | Observability | medium (3-5 d) | Medium | v0.5 |
 | 17 | RFC 9626 Video Frame Marking parser (H.264/VP9/HEVC) | SVC | small (2-3 d) | Medium | v0.5 |
 | 18 | `CongestionControl` trait + `RelaySource` trait for cascade | Architecture | medium (1 week) | Medium | v0.5 |
@@ -453,6 +453,9 @@ Legend: ✅ shipped, 🔜 next, — deferred
 | 21 | SCReAMv2 pluggable CC (Rust port) | BWE | large (>1 month) | Low (cellular-specific) | later |
 | 22 | L4S mode (ECT(1) marking + ECE feedback) | BWE | large, blocked on ecosystem | Low today, rising | later |
 | 23 | Predictive ML-based layer selection | SVC | large, research | Speculative | not planned |
+| 16a | ✅ `kalman-bwe` feature — Kalman delay + loss BWE, TWCC ingestion, `Registry::update_pacer_layers` | BWE | medium | Very High | v0.6.0 |
+| 16b | ✅ `Propagated::ClientBudgetHint` — browser DataChannel budget ceiling | BWE | small | Medium | v0.6.0 |
+| 16c | ✅ Auto audio-level extraction from `MediaData.ext_vals.audio_level` in `poll_all` | ASD | small | Medium | v0.6.0 |
 
 ---
 
