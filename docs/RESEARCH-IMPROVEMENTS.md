@@ -15,10 +15,13 @@ academic + industry research, read-only research pass.
 
 1. **✅ DONE (v0.2.0) — BWE surfacing.** `Event::EgressBitrateEstimate` is now exposed as
    `Propagated::BandwidthEstimate { peer_id, estimate }` with a `BandwidthEstimate { bps }`
-   type and a `sfu_bandwidth_estimate_bps{peer_id}` Prometheus gauge. The remaining gap:
-   **no pacer, no per-subscriber budget allocator, no hysteresis, no audio-only fallback.**
-   Parent OxPulse has `crates/sfu/src/{bandwidth,pacer}.rs` we can lift almost verbatim.
-   **This is still the single largest correctness improvement remaining.** Medium (1 week).
+   type and a `sfu_bandwidth_estimate_bps{peer_id}` Prometheus gauge.
+   **✅ DONE (v0.4.0) — Pacer + per-subscriber budget allocator + hysteresis + audio-only fallback**
+   shipped behind `feature = "pacer"`. `Registry::update_pacer_layers` coordinates layer
+   selection with the pacer.
+   **✅ DONE (v0.6.0) — Kalman BWE** (`feature = "kalman-bwe"`): Kalman delay-based + loss
+   BWE, TWCC ingestion, and `Propagated::ClientBudgetHint` for browser DataChannel budget
+   ceiling. This item is fully resolved.
 2. **Add AV1 Dependency Descriptor parsing and a per-subscriber layer selector.**
    Without parsing the AV1 DD RTP header extension (RFC in progress, draft-ietf-avtext-framemarking
    for H.264/HEVC, RFC 7941-style for AV1) we cannot drop individual temporal/spatial layers
@@ -136,10 +139,10 @@ What *is* actionable:
 | Lag-Busting WebRTC (Tang et al., ACM 2024, `dl.acm.org/doi/pdf/10.1145/3793853.3798195`) | 2024 academic | Demonstrates L4S applied to WebRTC adaptive video; reference design for later. |
 | ECN-based Congestion Control for WebRTC (poster, ACM 2024, `dl.acm.org/doi/epdf/10.1145/3730567.3768595`) | 2024 | Practical L4S client implementation. |
 
-**What we already know internally.** `docs/superpowers/research/2026-04-21-rust-gcc-twcc-crates.md` in
-parent `oxpulse-chat` (feat/rooms) already concluded: str0m has the algorithm, no standalone
-Rust crate exists, the path is copy-adapt into our SFU layer. The parent already did this
-in `crates/sfu/src/{bandwidth,pacer}.rs`. That code is not in the kit.
+**What we already know internally.** Prior research in the parent `oxpulse-chat` repo
+already concluded: str0m has the algorithm, no standalone Rust crate exists, the path is
+copy-adapt into our SFU layer. The parent already did this in
+`crates/sfu/src/{bandwidth,pacer}.rs`. That code is now in the kit (see v0.4.0 / v0.6.0).
 
 ### Recommendations for v0.2+
 
@@ -178,9 +181,7 @@ it is misleading to list it as "not included" and then silently swallow it insid
 
 - **LiveKit Dynacast** (Apache-2.0 reference in `livekit/protocol` `SubscribedQualityUpdate`):
   server computes the max RID any subscriber wants and tells the publisher to stop
-  encoding higher layers via RTCP feedback. Saves publisher CPU + bandwidth. Already
-  documented in our parent `docs/superpowers/research/2026-04-21-group-calls-architecture.md`
-  §6.
+  encoding higher layers via RTCP feedback. Saves publisher CPU + bandwidth.
 - **mediasoup `VideoConsumer::UpdateTargetLayers`**: similar pattern, computes from the
   subscribed `Consumer`s.
 - **AV1 Dependency Descriptor** (`urn:ietf:params:rtp-hdrext:av1-dependency-descriptor`,
@@ -292,8 +293,8 @@ NACK is on. Video uses NACK+keyframe, not FEC, because ULPFEC/FlexFEC cost too m
   X25519+Kyber). Matrix's vodozemac already has MLKEM support. Post-quantum MLS
   ciphersuites are draft-stage in IETF MLS-WG.
 - **Element Call / LiveKit** both deploy SFrame via `livekit-client/e2ee/` worker
-  (Apache-2.0). Parent's `docs/superpowers/research/2026-04-21-sframe-implementations-deep.md`
-  covers this in detail.
+  (Apache-2.0). See `livekit/client-sdk-js` `src/e2ee/worker/` and
+  `element-hq/element-call` for reference implementations.
 
 ### Recommendations for v0.2+
 
@@ -521,14 +522,7 @@ Legend: ✅ shipped, 🔜 next, — deferred
 - ten-vad — `TEN-framework/ten-vad`, MIT.
 - Silero VAD — `snakers4/silero-vad`, **CC BY-NC 4.0 — do not use commercially**.
 
-### Internal prior research (in parent `oxpulse-chat` feat/rooms)
+### Reference code in parent `oxpulse-chat`
 
-- `docs/superpowers/research/2026-04-21-rust-gcc-twcc-crates.md` — definitive survey of
-  Rust BWE options; we borrow its "copy-adapt from str0m" conclusion.
-- `docs/superpowers/research/2026-04-21-sframe-implementations-deep.md` — SFrame impl
-  survey.
-- `docs/superpowers/research/2026-04-21-group-calls-architecture.md` — topology
-  comparison (mesh vs SFU vs MCU) + Dynacast detail.
-- `docs/superpowers/research/2026-04-21-str0m-deep-reference.md` — str0m internals.
 - `crates/sfu/src/{bandwidth,pacer}.rs` + `crates/sfu/src/registry/bwe.rs` — working
-  reference code we should port into the kit.
+  reference code that has been ported into this kit (v0.4.0 / v0.6.0).
