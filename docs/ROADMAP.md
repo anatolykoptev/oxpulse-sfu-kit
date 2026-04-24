@@ -1,67 +1,164 @@
-# oxpulse-sfu-kit Roadmap
+# oxpulse-sfu-kit — Security & Feature Roadmap
 
-## v0.5.0 — RelaySource (✅ shipped)
+> **Design principle:** Every version must be deployable by a single engineer
+> in under one hour. Security upgrades never break existing API surface.
+> Clients include attorneys, physicians, and government officials — correctness
+> and auditability matter more than velocity.
 
-Mark a `Client` as originating from an upstream SFU relay connection.
+---
 
-### Added
-- `ClientOrigin { Local, RelayFromSfu(String) }` enum; zero cost when unused.
-- `Client::set_origin()` / `Client::origin()` / `Client::is_relay()`.
-- `TrackIn::relay_source: bool` — stamps relay origin at track-open time.
-- `Propagated::UpstreamKeyframeRequest` — PLI/FIR routed to application layer instead of relay peer.
-- `Propagated::PublisherLayerHintForUpstream` — Dynacast hint for inter-SFU signalling.
-- Relay clients excluded from dominant-speaker detector.
+## ✅ Shipped
 
-### Known limitation
-`serve_socket` / `run_udp_loop` silently drop application-facing events
-(`UpstreamKeyframeRequest`, `PublisherLayerHintForUpstream`). Callers that need
-these must drive the registry directly via `poll_all` + `fanout_pending` and
-inspect the `Propagated` enum. A per-event hook is a candidate for v0.6.
+### v0.4.0 — BWE / Simulcast / Relay foundation
+- `pacer` feature — Kalman BWE adaptive layer switching, `AudioOnlyMode`
+- `av1-dd` feature — AV1 Dependency Descriptor parser + temporal-layer drop
+- `vfm` feature — RFC 9626 Video Frame Marking (H.264/VP9/HEVC)
+- `LayerSelector` + `BestFitSelector` — per-subscriber simulcast layer selection
+- Dynacast `PublisherLayerHint`, `AudioCodecHint`, `KeyEpoch` SFrame seam
 
-### Call-order contract
-`client.set_origin(ClientOrigin::RelayFromSfu(...))` must be called **before**
-`registry.insert(client)`. The insert path reads `is_relay()` to skip
-dominant-speaker detector registration.
+### v0.5.0 — RelaySource (cascade SFU Phase 1)
+- `ClientOrigin::RelayFromSfu` — marks relay clients, excludes from speaker detector
+- `Propagated::UpstreamKeyframeRequest` — PLI/FIR routed upstream not to relay peer
+- `Propagated::PublisherLayerHintForUpstream` — Dynacast hint for inter-SFU signalling
+- Signaling: cascade detection, `ServerMsg::UpgradeRelay`, relay-ready watch channel
 
-## RelaySource — cascade SFU topology (✅ Phase 1 complete)
+### v0.6.0 — Kalman BWE + TWCC
+- `kalman-bwe` feature — GoogCC-inspired Kalman delay + loss BWE
+- TWCC feedback ingestion (`Registry::on_twcc_feedback`)
+- `BandwidthEstimator` with 4-input `combined_bps`
+- Auto audio-level extraction from `MediaData.ext_vals.audio_level`
+- `Propagated::ClientBudgetHint` — browser DataChannel budget ceiling
 
-**Partner-edge:** `RelaySource` feature shipped (v0.5.0+). `ClientOrigin::RelayFromSfu` marks relay clients, `UpstreamKeyframeRequest` routes keyframes upstream, relay clients excluded from speaker detector.
+---
 
-**Signaling:** Cascade detection + async relay trigger shipped in oxpulse-chat `feat/rooms` (2026-04-23). `ServerMsg::UpgradeRelay` pushes migration to live peers after 6s settling delay.
+## Phase 1 — Security Hardening  ·  v0.7.0  ·  Q2 2026
 
-**Phase 2 remaining:**
-- ICE path for relay client UDP traffic (currently stub in `relay/client.rs`)
+*Goal: close all known attack surfaces before regulated-industry GA.*
+
+### Relay authentication (CRITICAL fixes from security audit)
+- ✅ Room token verification in SFU (`room_auth.rs`, `SIGNALING_SFU_SECRET`)
+- ✅ JWT replay protection (JTI nonce store, 1 000-entry eviction)
+- ✅ Relay JWT migrated to RFC 7519 (`jsonwebtoken` HS256, drops homegrown HMAC/b64)
+- ✅ Upstream allow-list in relay client (wss://*.oxpulse.chat only)
+- ✅ `RELAY_JWT_SECRET` startup validation (refuses default, enforces ≥ 32 bytes)
+- ✅ `RELAY_JWT_SECRET` SSRF fix — JWT fields used, not unsigned body fields
+- ✅ TURN credential TTL: 24h → 1h
+
+### App-facing event hook
+- `Registry::set_event_handler(fn)` — callers receive `UpstreamKeyframeRequest`,
+  `PublisherLayerHintForUpstream`, `PublisherLayerHint` without polling `poll_all`
+- Unblocks `serve_socket` / `run_udp_loop` consumers from driving the registry manually
+
+### Cascade relay Phase 2
+- ICE/UDP path for relay client (currently stub; completes the outbound offerer)
 - Media forwarding from upstream edge to local Registry
-- SFrame key-epoch forwarding through relay hops
+- `upstream_room_token` plumbed through to upstream SFU join (LOW-1 from audit)
 
 ---
 
-## v0.6.0 — kalman-bwe (✅ shipped)
+## Phase 2 — Cryptographic Upgrade  ·  v0.8.0  ·  Q3 2026
 
-- **`kalman-bwe` feature** — GoogCC-inspired Kalman delay + loss BWE. `BandwidthEstimator` with TWCC ingestion. `Registry::update_pacer_layers` for automatic layer selection.
-- `Propagated::ClientBudgetHint(ClientId, u64)` — browser DataChannel budget ceiling.
-- Auto audio-level extraction from `MediaData.ext_vals.audio_level` (str0m 0.18, RFC 6464).
-- `SfuMediaPayload::audio_level_raw() -> Option<i8>` accessor.
+*Goal: FIPS 140-3 readiness and elimination of shared-secret relay auth.*
+
+### FIPS 140-3 cryptographic provider
+- Replace `ring` crate with `aws-lc-rs` (AWS libcrypto fork, FIPS 140-3 validated)
+- Enable FIPS mode via `aws_lc_rs::fips::enable()` at startup
+- All HMAC, SHA-2, AES-GCM, X25519 operations through validated provider
+- Required for US federal procurement (senators, DoD-adjacent clients)
+- No API surface change; provider swap is internal
+
+### mTLS + Ed25519 between SFU edges (replaces shared-secret relay JWT)
+- Each partner-edge generates an Ed25519 keypair at registration
+- Public key registered with oxpulse-chat signaling (replaces `RELAY_JWT_SECRET`)
+- Relay tokens signed by signaling's private key, verified by edge public keys
+- One compromised edge cannot forge tokens for others (vs. current shared secret)
+- Implementation: `rcgen` for cert generation, `rustls` for mTLS handshake
+
+### Room token: asymmetric (Ed25519) signing
+- Replace HS256 room tokens with Ed25519 EdDSA (signaling holds private key)
+- SFU edges hold only public key — cannot forge tokens even if fully compromised
+- `jsonwebtoken` supports EdDSA in v9+; backward-compatible migration path
 
 ---
 
-## v0.7.0 — Planned
+## Phase 3 — Key Transparency & Forward Secrecy  ·  v0.9.0  ·  Q4 2026
 
-- App-facing event hook (`Registry::set_event_handler`) for relay and Dynacast events.
-- ICE path for relay client UDP traffic (Phase 2 cascade relay).
-- Media forwarding from upstream edge to local Registry.
-- SFrame key-epoch forwarding through relay hops.
-- SCReAMv2 CC plugin (blocked on str0m TWCC raw-bytes API).
+*Goal: cryptographic proof that keys have not been silently replaced (MITM prevention).*
 
-## CongestionControl — partially resolved in v0.6.0
+### Key Transparency (KT) log
+- Append-only Merkle log of SFrame public keys per room
+- Clients can verify their key was not replaced between sessions
+- Prevents MITM even against a fully compromised signaling server
+- Reference: Google Key Transparency, Apple's PQ3 implementation
+- Implementation: `transparency-dev/trillian`-compatible log or lightweight custom
 
-`CongestionControl` trait shipped in v0.4.0 (`src/cc.rs`) as a dead seam.
-In v0.6.0, TWCC feedback ingestion is now wired internally: `Registry::on_twcc_feedback`
-accepts `TwccFeedback` and feeds it into `BandwidthEstimator`. Applications can now
-drive Kalman delay + loss-based BWE without depending on str0m's internal GoogCC.
+### SFrame proper group key management
+- Replace P2P DataChannel key exchange with MLS (RFC 9420)
+- O(log N) RotateKey on member join/leave (vs. current O(N) P2P renegotiation)
+- Forward secrecy: departed member's key material is cryptographically erased
+- Post-compromise security: re-joins cannot access prior session content
+- Implementation: `openmls` crate (Apache-2.0, production-ready Rust MLS)
+- Wire format: `draft-ietf-mimi-content-08` for interop
 
-The plugin trait API (`CongestionControl` as an open seam for SCReAMv2/L4S) remains
-future work. The current `DefaultGoogCC` no-op is still in place; plugging in
-alternative CC algorithms (SCReAM, L4S) requires a future str0m TWCC raw-bytes API.
+### MLS post-quantum hybrid
+- MLS `CipherSuite: MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519` (baseline)
+- Upgrade path to `MLS_256_XWING_AES256GCM_SHA512_Ed448` (post-quantum hybrid)
+- `XWING` = X25519 + ML-KEM-768 hybrid (NIST winner, already in BoringSSL)
 
-**Upstream feature request:** https://github.com/algesten/str0m/issues.
+---
+
+## Phase 4 — Transport & Compute Hardening  ·  v1.0.0  ·  2027
+
+*Goal: protocol-level post-quantum + operator-blind execution.*
+
+### Media over QUIC (MoQ)
+- Replace DTLS 1.2/SRTP with QUIC transport (TLS 1.3 natively, no legacy cipher suites)
+- Post-quantum handshake via ML-KEM-768 (already in BoringSSL/AWS-LC)
+- No head-of-line blocking, 0-RTT reconnect
+- IETF standard `draft-ietf-moq-transport` maturing in 2026
+- Requires str0m QUIC support or separate QUIC media stack
+
+### Confidential Computing for SFU (TEE)
+- Run SFU binary inside Intel TDX or AMD SEV-SNP enclave
+- Even the operator (oxpulse.chat infra team) cannot see call content
+- Remote attestation: clients verify SGX measurement before sending media
+- Reference: Signal uses Intel SGX for Contact Discovery Service
+- Provider support: AWS Nitro Enclaves, Azure Confidential VMs, Oracle OCI CC
+- Implementation timeline: ~3 months; requires hardware-specific build
+
+### SCReAMv2 pluggable CC
+- `CongestionControl` trait (v0.4.0 seam) wired to real SCReAMv2 implementation
+- Blocked on str0m exposing raw TWCC feedback bytes
+- Upstream feature request: `algesten/str0m#issues`
+
+---
+
+## Security Audit Status
+
+| Finding | Severity | Status |
+|---------|----------|--------|
+| SSRF via unsigned upstream_url | CRITICAL | ✅ Fixed v0.7 |
+| Default `RELAY_JWT_SECRET` | CRITICAL | ✅ Fixed v0.7 |
+| SFU relay_source without auth | CRITICAL | ✅ Fixed v0.7 |
+| JWT replay (no JTI) | HIGH | ✅ Fixed v0.7 |
+| TURN TTL 24h | HIGH | ✅ Fixed v0.7 |
+| Panic on UTF-8 room_id | HIGH | ✅ Fixed v0.7 |
+| Homegrown HMAC/base64url JWT | MEDIUM | ✅ Fixed v0.7 |
+| Upstream allow-list | MEDIUM | ✅ Fixed v0.7 |
+| Shared symmetric relay secret | LOW | → Phase 2 Ed25519 |
+| P2P DataChannel key distribution | MEDIUM | → Phase 3 MLS |
+| DTLS 1.2 (no PQ) | MEDIUM | → Phase 4 MoQ |
+| No FIPS 140-3 provider | — | → Phase 2 aws-lc-rs |
+| No Key Transparency | — | → Phase 3 KT |
+| No operator-blind execution | — | → Phase 4 TEE |
+
+---
+
+## Dependencies & Blockers
+
+| Feature | Blocker |
+|---------|---------|
+| SCReAMv2 | str0m raw TWCC bytes exposure |
+| Media over QUIC | str0m QUIC transport; MoQ spec maturity |
+| Confidential Computing | Hardware (Intel TDX, AMD SEV-SNP) |
+| Post-quantum DTLS | str0m upgrade; IETF draft finalization |
