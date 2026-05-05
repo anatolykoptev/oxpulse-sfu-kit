@@ -146,6 +146,21 @@ pub enum Propagated {
         /// `true` = entered audio-only; `false` = video restored.
         audio_only: bool,
     },
+    /// Subscriber's egress BWE crossed the suspend-video threshold.
+    ///
+    /// When `suspended = true`, drop ALL media to this peer (Phase 7 wires the
+    /// per-client fanout filter that performs the actual drop).
+    /// When `suspended = false`, lift back to the audio-only continuation;
+    /// a subsequent `RestoreVideo` will then lift to LOW.
+    /// Only emitted with `pacer` feature.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    SuspendVideo {
+        /// The subscriber peer.
+        peer_id: ClientId,
+        /// `true` = entered suspended sub-state; `false` = audio-only restored.
+        suspended: bool,
+    },
     /// Hint to the publisher that they may stop encoding layers above `max_rid`.
     ///
     /// Emitted by  when the maximum
@@ -205,6 +220,8 @@ impl Propagated {
             | Propagated::RtcpStats { peer_id, .. } => Some(*peer_id),
             #[cfg(feature = "pacer")]
             Propagated::AudioOnlyMode { peer_id, .. } => Some(*peer_id),
+            #[cfg(feature = "pacer")]
+            Propagated::SuspendVideo { peer_id, .. } => Some(*peer_id),
             Propagated::PublisherLayerHint { publisher_id, .. } => Some(*publisher_id),
             Propagated::PublisherLayerHintForUpstream {
                 publisher_relay_id, ..
