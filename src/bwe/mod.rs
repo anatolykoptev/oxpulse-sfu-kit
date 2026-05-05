@@ -41,6 +41,12 @@ pub(crate) const MEDIUM_MIN_BPS: u64 = 350_000;
 /// Minimum BWE to sustain the HIGH ("f") simulcast layer --- bits/s.
 #[cfg(feature = "pacer")]
 pub(crate) const HIGH_MIN_BPS: u64 = 700_000;
+/// Consecutive ticks below `SUSPEND_VIDEO_BPS` required before the pacer
+/// enters its `suspended` sub-state. Asymmetric with `UPGRADE_STREAK`:
+/// entry mistakes cause a visible video gap, so a small (2-tick) debounce
+/// rejects single-tick TWCC spikes without delaying real-congestion response.
+#[cfg(feature = "pacer")]
+pub(crate) const SUSPEND_STREAK: u8 = 2;
 /// Ticks above next tier required before upgrading (prevents thrash).
 #[cfg(feature = "pacer")]
 pub(crate) const UPGRADE_STREAK: u8 = 3;
