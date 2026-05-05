@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use super::kalman::{DelayEstimator, MAX_BITRATE_BPS, MIN_BITRATE_BPS};
+use super::kalman::DelayEstimator;
 use super::loss::LossEstimator;
 
 /// Initial bitrate assigned to a new subscriber (bps).
