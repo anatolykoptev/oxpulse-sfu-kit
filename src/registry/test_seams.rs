@@ -163,7 +163,19 @@ impl Registry {
                         audio_only: false,
                     });
                 }
-                _ => {}
+                PacerAction::SuspendVideo => {
+                    self.to_propagate.push_back(Propagated::SuspendVideo {
+                        peer_id,
+                        suspended: true,
+                    });
+                }
+                PacerAction::RestoreAudio => {
+                    self.to_propagate.push_back(Propagated::SuspendVideo {
+                        peer_id,
+                        suspended: false,
+                    });
+                }
+                PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
             }
         }
     }
