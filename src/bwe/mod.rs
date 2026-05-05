@@ -14,8 +14,6 @@
 //!
 //! Ported from .
 
-#![allow(dead_code, unused_imports)] // skeleton; wired up in Task 2
-
 #[cfg(feature = "pacer")]
 mod hysteresis;
 
