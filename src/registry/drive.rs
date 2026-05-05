@@ -53,6 +53,18 @@ impl Registry {
                                         audio_only: false,
                                     });
                                 }
+                                PacerAction::SuspendVideo => {
+                                    self.to_propagate.push_back(Propagated::SuspendVideo {
+                                        peer_id,
+                                        suspended: true,
+                                    });
+                                }
+                                PacerAction::RestoreAudio => {
+                                    self.to_propagate.push_back(Propagated::SuspendVideo {
+                                        peer_id,
+                                        suspended: false,
+                                    });
+                                }
                                 PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
                             }
                         }
@@ -270,6 +282,18 @@ impl Registry {
                         self.to_propagate.push_back(Propagated::AudioOnlyMode {
                             peer_id: sub_id,
                             audio_only: false,
+                        });
+                    }
+                    PacerAction::SuspendVideo => {
+                        self.to_propagate.push_back(Propagated::SuspendVideo {
+                            peer_id: sub_id,
+                            suspended: true,
+                        });
+                    }
+                    PacerAction::RestoreAudio => {
+                        self.to_propagate.push_back(Propagated::SuspendVideo {
+                            peer_id: sub_id,
+                            suspended: false,
                         });
                     }
                     PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}

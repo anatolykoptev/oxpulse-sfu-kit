@@ -1,4 +1,6 @@
-use super::{AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, UPGRADE_STREAK};
+use super::{
+    AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_VIDEO_BPS, UPGRADE_STREAK,
+};
 use crate::ids::SfuRid;
 
 /// Action returned by `SubscriberPacer::update`.
@@ -10,10 +12,16 @@ pub enum PacerAction {
     NoChange,
     /// Switch to this simulcast layer immediately.
     ChangeLayer(SfuRid),
-    /// BWE fell below audio-only threshold --- stop forwarding video.
+    /// BWE fell below audio-only threshold — stop forwarding video.
     GoAudioOnly,
-    /// BWE recovered --- resume video forwarding.
+    /// BWE recovered — resume video forwarding.
     RestoreVideo,
+    /// BWE fell below the suspend-video threshold — stop forwarding ALL video,
+    /// including the audio-only continuation. Audio remains forwarded.
+    SuspendVideo,
+    /// BWE recovered above the audio-only threshold while suspended — resume
+    /// audio-only forwarding (NOT full video; that requires `RestoreVideo` later).
+    RestoreAudio,
 }
 
 /// Per-subscriber hysteretic layer selector.
@@ -24,6 +32,9 @@ pub enum PacerAction {
 pub(crate) struct SubscriberPacer {
     current_layer: SfuRid,
     audio_only: bool,
+    /// `true` once BWE dropped below `SUSPEND_VIDEO_BPS`. Implies `audio_only=true`
+    /// (suspended is a stricter sub-state). Cleared on `RestoreAudio`.
+    suspended: bool,
     upgrade_streak: u8,
 }
 
@@ -32,12 +43,34 @@ impl SubscriberPacer {
         Self {
             current_layer: SfuRid::LOW,
             audio_only: false,
+            suspended: false,
             upgrade_streak: 0,
         }
     }
 
     /// Feed a new egress BWE reading. Returns the action to take (if any).
     pub(crate) fn update(&mut self, bps: u64) -> PacerAction {
+        // Suspended: stay suspended until we cross AUDIO_ONLY_BPS upward.
+        if self.suspended {
+            if bps >= AUDIO_ONLY_BPS {
+                self.suspended = false;
+                // RestoreAudio lands us in audio_only=true. RestoreVideo will
+                // be emitted on the NEXT tick if bps also clears LOW_MIN_BPS.
+                self.audio_only = true;
+                self.upgrade_streak = 0;
+                return PacerAction::RestoreAudio;
+            }
+            return PacerAction::NoChange;
+        }
+
+        // Drop into suspended from any state when bps < SUSPEND_VIDEO_BPS.
+        if bps < SUSPEND_VIDEO_BPS {
+            self.suspended = true;
+            self.audio_only = true;
+            self.upgrade_streak = 0;
+            return PacerAction::SuspendVideo;
+        }
+
         // Audio-only mode: enter below AUDIO_ONLY_BPS, exit only above LOW_MIN_BPS.
         if self.audio_only {
             if bps >= LOW_MIN_BPS {
@@ -86,6 +119,10 @@ impl SubscriberPacer {
     #[cfg(test)]
     fn audio_only(&self) -> bool {
         self.audio_only
+    }
+    #[cfg(test)]
+    fn suspended(&self) -> bool {
+        self.suspended
     }
 }
 
@@ -210,7 +247,7 @@ mod tests {
         let mut p = SubscriberPacer::new();
         let first = p.update(AUDIO_ONLY_BPS - 1);
         assert_eq!(first, PacerAction::GoAudioOnly);
-        let second = p.update(1_000); // even lower --- still audio-only, must NOT emit again
+        let second = p.update(SUSPEND_VIDEO_BPS + 1); // grey zone (above suspend, below LOW_MIN_BPS) --- still audio-only, must NOT emit again
         assert_eq!(second, PacerAction::NoChange,
             "GoAudioOnly must not be emitted twice; second call while audio-only must return NoChange");
     }
@@ -283,5 +320,113 @@ mod tests {
         // 3rd tick --- upgrades again
         p.update(MEDIUM_MIN_BPS + 1);
         assert_eq!(p.layer(), SfuRid::MEDIUM);
+    }
+
+    #[test]
+    fn enters_suspended_below_suspend_threshold() {
+        let mut p = SubscriberPacer::new();
+        let a = p.update(SUSPEND_VIDEO_BPS - 1);
+        assert_eq!(a, PacerAction::SuspendVideo);
+        assert!(p.suspended());
+        assert!(p.audio_only(), "suspended implies audio_only=true");
+    }
+
+    #[test]
+    fn double_suspend_is_no_change() {
+        let mut p = SubscriberPacer::new();
+        assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
+        assert_eq!(
+            p.update(1),
+            PacerAction::NoChange,
+            "second tick while suspended must NOT re-emit SuspendVideo"
+        );
+    }
+
+    #[test]
+    fn grey_zone_while_suspended_is_no_change() {
+        // (SUSPEND_VIDEO_BPS, AUDIO_ONLY_BPS) while suspended --- no action
+        let mut p = SubscriberPacer::new();
+        p.update(SUSPEND_VIDEO_BPS - 1); // enter suspended
+        for bps in [SUSPEND_VIDEO_BPS, SUSPEND_VIDEO_BPS + 1, AUDIO_ONLY_BPS - 1] {
+            assert_eq!(
+                p.update(bps),
+                PacerAction::NoChange,
+                "bps={bps} grey zone while suspended"
+            );
+        }
+    }
+
+    #[test]
+    fn restore_audio_lands_in_audio_only_state() {
+        // From suspended, crossing AUDIO_ONLY_BPS upward emits RestoreAudio
+        // and lands in audio_only=true, suspended=false (NOT directly to LOW).
+        let mut p = SubscriberPacer::new();
+        p.update(SUSPEND_VIDEO_BPS - 1);
+        let a = p.update(AUDIO_ONLY_BPS);
+        assert_eq!(a, PacerAction::RestoreAudio);
+        assert!(!p.suspended());
+        assert!(
+            p.audio_only(),
+            "RestoreAudio must put pacer in audio_only state, not full video"
+        );
+    }
+
+    #[test]
+    fn full_recovery_cascade_suspend_to_video() {
+        let mut p = SubscriberPacer::new();
+        assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
+        assert_eq!(p.update(AUDIO_ONLY_BPS), PacerAction::RestoreAudio);
+        assert_eq!(p.update(LOW_MIN_BPS), PacerAction::RestoreVideo);
+        // Upgrade still requires 3 streaks.
+        p.update(MEDIUM_MIN_BPS + 1);
+        p.update(MEDIUM_MIN_BPS + 1);
+        let a = p.update(MEDIUM_MIN_BPS + 1);
+        assert_eq!(a, PacerAction::ChangeLayer(SfuRid::MEDIUM));
+    }
+
+    #[test]
+    fn exact_suspend_boundary_is_audio_only_mode() {
+        // bps == SUSPEND_VIDEO_BPS is NOT suspended (condition is strictly <)
+        let mut p = SubscriberPacer::new();
+        let a = p.update(SUSPEND_VIDEO_BPS); // exactly 10_000
+        assert_eq!(
+            a,
+            PacerAction::GoAudioOnly,
+            "exactly SUSPEND_VIDEO_BPS should be GoAudioOnly, not SuspendVideo"
+        );
+        assert!(!p.suspended());
+    }
+
+    #[test]
+    fn exact_audio_only_boundary_while_suspended_triggers_restore_audio() {
+        // bps == AUDIO_ONLY_BPS while suspended should trigger RestoreAudio (>=).
+        let mut p = SubscriberPacer::new();
+        p.update(SUSPEND_VIDEO_BPS - 1);
+        let a = p.update(AUDIO_ONLY_BPS);
+        assert_eq!(a, PacerAction::RestoreAudio);
+    }
+
+    #[test]
+    fn suspend_supersedes_pending_layer_change() {
+        // With a high upgrade streak, a sudden drop to suspended must NOT emit
+        // ChangeLayer first --- Suspend wins.
+        let mut p = SubscriberPacer::new();
+        p.update(MEDIUM_MIN_BPS + 1); // streak=1
+        p.update(MEDIUM_MIN_BPS + 1); // streak=2
+        let a = p.update(SUSPEND_VIDEO_BPS - 1);
+        assert_eq!(a, PacerAction::SuspendVideo);
+        assert!(p.suspended());
+    }
+
+    #[test]
+    fn drop_from_video_directly_to_suspend_is_one_event() {
+        // From layer=LOW (no audio_only state), a single tick to <10k must
+        // emit SuspendVideo (skipping GoAudioOnly).
+        let mut p = SubscriberPacer::new();
+        assert_eq!(p.update(LOW_MIN_BPS + 1), PacerAction::NoChange);
+        let a = p.update(SUSPEND_VIDEO_BPS - 1);
+        assert_eq!(a, PacerAction::SuspendVideo);
+        assert!(p.suspended());
+        assert!(p.audio_only());
     }
 }

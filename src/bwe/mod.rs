@@ -24,6 +24,13 @@ pub use hysteresis::PacerAction;
 #[cfg(feature = "pacer")]
 pub(crate) use hysteresis::SubscriberPacer;
 
+/// Below this egress BWE, the pacer enters its `suspended` sub-state and emits
+/// `PacerAction::SuspendVideo`. Audio at this BWE is below the Opus narrow-band
+/// budget (~8 kbps); forwarding it burns the link without delivering speech.
+/// Phase 7 wires the per-client fanout filter that drops video frames for
+/// suspended subscribers.
+#[cfg(feature = "pacer")]
+pub(crate) const SUSPEND_VIDEO_BPS: u64 = 10_000;
 /// Below this egress BWE, video is suspended (audio-only mode) --- bits/s.
 #[cfg(feature = "pacer")]
 pub(crate) const AUDIO_ONLY_BPS: u64 = 80_000;

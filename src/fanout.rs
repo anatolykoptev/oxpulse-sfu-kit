@@ -55,7 +55,7 @@ pub(crate) fn fanout(p: &Propagated, clients: &mut [Client]) {
             #[cfg(feature = "active-speaker")]
             Propagated::ActiveSpeakerChanged { .. } => {}
             #[cfg(feature = "pacer")]
-            Propagated::AudioOnlyMode { .. } => {}
+            Propagated::AudioOnlyMode { .. } | Propagated::SuspendVideo { .. } => {}
         }
     }
 }
