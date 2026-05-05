@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Phase 6 — third bandwidth tier `SuspendVideo`** below `AudioOnlyMode`
+  (signal-only; per-client fanout filter lands in Phase 7).
+  - `SUSPEND_VIDEO_BPS = 10_000` threshold const in `src/bwe/mod.rs`.
+  - `PacerAction::SuspendVideo` and `PacerAction::RestoreAudio` variants.
+  - `SubscriberPacer::suspended` sub-state with FSM cascade `Suspend →
+    RestoreAudio → RestoreVideo → ChangeLayer`.
+  - `Propagated::SuspendVideo { peer_id, suspended }` event, emitted from
+    both the TWCC and Kalman pacer paths in the registry.
+  - 9 new unit tests in `src/bwe/hysteresis.rs` and 3 integration tests in
+    `tests/pacer_suspend_video.rs`.
+
+### Changed
+
+- **BREAKING (semver-major, pre-1.0)** — `#[non_exhaustive]` added to
+  public enums `Propagated`, `PacerAction`, and `ClientOrigin`. Downstream
+  consumers doing exhaustive `match` on these types must add a wildcard
+  arm or explicit handling on upgrade. Within-crate matches are unaffected
+  (same-crate exemption). Phase 6+ will continue to grow these enums;
+  this consolidates one inevitable downstream break.
+
+### Removed
+
+- Stale `#![allow(dead_code, unused_imports)]` in `src/bwe/mod.rs`
+  (skeleton comment from earlier development phase). Surfaced one real
+  unused import in `src/bwe/subscriber.rs` — fixed.
+
 ## [0.6.0] — 2026-04-23
 
 ### Added

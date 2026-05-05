@@ -14,6 +14,7 @@
 /// `is_relay()` to decide whether to register the peer with the
 /// dominant-speaker detector.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ClientOrigin {
     /// A normal WebRTC peer connected directly to this SFU.
     #[default]

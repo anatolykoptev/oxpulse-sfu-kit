@@ -7,6 +7,7 @@ use crate::ids::SfuRid;
 #[must_use = "PacerAction must be applied to the subscriber's forwarding state"]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PacerAction {
     /// No layer change.
     NoChange,
