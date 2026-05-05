@@ -84,7 +84,15 @@ impl SubscriberPacer {
             }
             return PacerAction::NoChange;
         }
-        // tick is at or above SUSPEND_VIDEO_BPS; reset streak (single-tick spike rejected)
+        // tick is at or above SUSPEND_VIDEO_BPS; reset streak (single-tick spike rejected).
+        //
+        // INVARIANT — branch ordering: every code path below this point is reachable only
+        // when `bps >= SUSPEND_VIDEO_BPS`, so `suspend_streak` has been zeroed for this
+        // tick. Subsequent emissions (`GoAudioOnly`, `RestoreVideo`, `ChangeLayer`) do
+        // NOT need to reset `suspend_streak` again — the reset is implicit via this
+        // ordering. If the suspend-entry branch is ever moved below the audio_only or
+        // layer branches, every emission below would need an explicit `suspend_streak = 0`
+        // to preserve correctness. Do not reorder without updating those resets.
         self.suspend_streak = 0;
 
         // Audio-only mode: enter below AUDIO_ONLY_BPS, exit only above LOW_MIN_BPS.
@@ -446,10 +454,10 @@ mod tests {
                                       // Pump SUSPEND_STREAK - 1 ticks below threshold: must be NoChange (debouncing)
         for _ in 0..(SUSPEND_STREAK - 1) {
             let a = p.update(SUSPEND_VIDEO_BPS - 1);
-            assert_ne!(
+            assert_eq!(
                 a,
-                PacerAction::ChangeLayer(SfuRid::MEDIUM),
-                "ChangeLayer must not be emitted while debouncing suspend"
+                PacerAction::NoChange,
+                "during suspend debounce, NO action may emit (not ChangeLayer, not GoAudioOnly, not SuspendVideo)"
             );
             assert!(!p.suspended());
         }

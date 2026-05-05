@@ -7,6 +7,7 @@
 
 #![cfg(all(feature = "pacer", feature = "test-utils"))]
 
+use oxpulse_sfu_kit::bwe::SUSPEND_STREAK;
 use oxpulse_sfu_kit::client::test_seed::new_client;
 use oxpulse_sfu_kit::propagate::Propagated;
 use oxpulse_sfu_kit::{ClientId, Registry};
@@ -38,11 +39,17 @@ fn suspend_then_restore_audio_then_restore_video_emits_events() {
     let (sub_id, _pub_id) = insert_two_clients(&mut reg);
 
     // Drop into suspended (< SUSPEND_VIDEO_BPS = 10_000).
-    // Requires SUSPEND_STREAK = 2 consecutive ticks (updated for F6-3 debounce).
-    for _ in 0..2 {
-        // must equal SUSPEND_STREAK in src/bwe/mod.rs
+    // Requires SUSPEND_STREAK consecutive ticks (F6-3 debounce). After the
+    // (SUSPEND_STREAK - 1)th tick, the queue MUST still be empty — only the
+    // SUSPEND_STREAKth tick emits SuspendVideo. Verified end-to-end here.
+    for _ in 0..(SUSPEND_STREAK - 1) {
         reg.drive_pacer_for_tests(sub_id, 5_000);
+        assert!(
+            drain_suspend_events(&mut reg).is_empty(),
+            "debounce violated: SuspendVideo emitted before SUSPEND_STREAK reached"
+        );
     }
+    reg.drive_pacer_for_tests(sub_id, 5_000);
     let evs = drain_suspend_events(&mut reg);
     assert_eq!(
         evs,
@@ -74,10 +81,10 @@ fn double_suspend_emits_only_once() {
     let mut reg = Registry::new_for_tests();
     let (sub_id, _pub_id) = insert_two_clients(&mut reg);
 
-    // First two ticks enter suspended (SUSPEND_STREAK = 2, updated for F6-3 debounce).
-    // must equal SUSPEND_STREAK in src/bwe/mod.rs
-    reg.drive_pacer_for_tests(sub_id, 5_000);
-    reg.drive_pacer_for_tests(sub_id, 5_000);
+    // SUSPEND_STREAK ticks below threshold to enter suspended (F6-3 debounce).
+    for _ in 0..SUSPEND_STREAK {
+        reg.drive_pacer_for_tests(sub_id, 5_000);
+    }
     // Additional ticks while already suspended — must not re-emit.
     reg.drive_pacer_for_tests(sub_id, 1_000);
     reg.drive_pacer_for_tests(sub_id, 500);
@@ -101,9 +108,8 @@ fn drop_video_to_suspend_in_one_tick_skips_audio_only_event() {
     reg.drive_pacer_for_tests(sub_id, 200_000);
     let _ = reg.drain_propagated_for_tests();
 
-    // SUSPEND_STREAK = 2 ticks straight to suspended (updated for F6-3 debounce).
-    // must equal SUSPEND_STREAK in src/bwe/mod.rs
-    for _ in 0..2 {
+    // SUSPEND_STREAK ticks straight to suspended (F6-3 debounce).
+    for _ in 0..SUSPEND_STREAK {
         reg.drive_pacer_for_tests(sub_id, 5_000);
     }
 
