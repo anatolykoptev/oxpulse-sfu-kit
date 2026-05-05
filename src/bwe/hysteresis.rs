@@ -1,4 +1,6 @@
-use super::{AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_VIDEO_BPS, UPGRADE_STREAK};
+use super::{
+    AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_VIDEO_BPS, UPGRADE_STREAK,
+};
 use crate::ids::SfuRid;
 
 /// Action returned by `SubscriberPacer::update`.

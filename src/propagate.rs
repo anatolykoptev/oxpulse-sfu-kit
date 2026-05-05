@@ -148,8 +148,9 @@ pub enum Propagated {
     },
     /// Subscriber's egress BWE crossed the suspend-video threshold.
     ///
-    /// When `suspended = true`, drop ALL media to this peer (Phase 7 wires the
-    /// per-client fanout filter that performs the actual drop).
+    /// When `suspended = true`, stop forwarding video to this peer; audio
+    /// continues to flow (audio-only is a parent state of suspended). Phase 7
+    /// wires the per-client fanout filter that performs the actual frame drop.
     /// When `suspended = false`, lift back to the audio-only continuation;
     /// a subsequent `RestoreVideo` will then lift to LOW.
     /// Only emitted with `pacer` feature.

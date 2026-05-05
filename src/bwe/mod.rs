@@ -24,26 +24,11 @@ pub use hysteresis::PacerAction;
 #[cfg(feature = "pacer")]
 pub(crate) use hysteresis::SubscriberPacer;
 
-/// Bandwidth thresholds, ascending. Subscriber egress BWE is compared against
-/// these to drive the per-subscriber pacer FSM.
-///
-/// Ladder (low to high):
-/// - `< SUSPEND_VIDEO_BPS` --- pacer enters `suspended` sub-state. Subscriber
-///   receives no media. Audio at this BWE is below the Opus narrow-band budget
-///   (~8 kbps); forwarding it burns the link without delivering speech.
-/// - `[SUSPEND_VIDEO_BPS, AUDIO_ONLY_BPS)` --- pacer in `audio_only` state.
-///   Video frames are dropped; audio is forwarded.
-/// - `[AUDIO_ONLY_BPS, LOW_MIN_BPS)` --- recovering. Pacer remains audio-only;
-///   needs `>= LOW_MIN_BPS` to lift back to video (`RestoreVideo`).
-/// - `>= LOW_MIN_BPS` / `MEDIUM_MIN_BPS` / `HIGH_MIN_BPS` --- video at matching
-///   simulcast layer. Upgrade requires `UPGRADE_STREAK` consecutive ticks;
-///   downgrade is immediate.
-
 /// Below this egress BWE, the pacer enters its `suspended` sub-state and emits
-/// `PacerAction::SuspendVideo`. Subscriber receives no media at all.
-///
-/// Subsequent commits in this PR add the matching `Propagated::SuspendVideo`
-/// event and (in Phase 7) the per-client fanout filter that drops frames.
+/// `PacerAction::SuspendVideo`. Audio at this BWE is below the Opus narrow-band
+/// budget (~8 kbps); forwarding it burns the link without delivering speech.
+/// Phase 7 wires the per-client fanout filter that drops video frames for
+/// suspended subscribers.
 #[cfg(feature = "pacer")]
 pub(crate) const SUSPEND_VIDEO_BPS: u64 = 10_000;
 /// Below this egress BWE, video is suspended (audio-only mode) --- bits/s.
