@@ -38,6 +38,7 @@ impl Deref for ClientId {
 /// reach individual clients. All other variants fan out to every non-origin peer.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Propagated {
     /// Nothing to do — returned by [`Client::poll_output`][crate::Client::poll_output]
     /// when str0m produced only outbound datagrams (queued on the client).
