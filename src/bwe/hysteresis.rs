@@ -1,5 +1,6 @@
 use super::{
-    AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_VIDEO_BPS, UPGRADE_STREAK,
+    AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_STREAK, SUSPEND_VIDEO_BPS,
+    UPGRADE_STREAK,
 };
 use crate::ids::SfuRid;
 
@@ -37,6 +38,9 @@ pub(crate) struct SubscriberPacer {
     /// (suspended is a stricter sub-state). Cleared on `RestoreAudio`.
     suspended: bool,
     upgrade_streak: u8,
+    /// Consecutive ticks below `SUSPEND_VIDEO_BPS` while not yet suspended.
+    /// Must reach `SUSPEND_STREAK` before transition to suspended state.
+    suspend_streak: u8,
 }
 
 impl SubscriberPacer {
@@ -46,6 +50,7 @@ impl SubscriberPacer {
             audio_only: false,
             suspended: false,
             upgrade_streak: 0,
+            suspend_streak: 0,
         }
     }
 
@@ -59,18 +64,36 @@ impl SubscriberPacer {
                 // be emitted on the NEXT tick if bps also clears LOW_MIN_BPS.
                 self.audio_only = true;
                 self.upgrade_streak = 0;
+                self.suspend_streak = 0;
                 return PacerAction::RestoreAudio;
             }
             return PacerAction::NoChange;
         }
 
-        // Drop into suspended from any state when bps < SUSPEND_VIDEO_BPS.
+        // Debounced suspend-entry: require SUSPEND_STREAK consecutive ticks below
+        // SUSPEND_VIDEO_BPS before entering suspended state. A single anomalous TWCC
+        // packet must not kill all video for the subscriber.
         if bps < SUSPEND_VIDEO_BPS {
-            self.suspended = true;
-            self.audio_only = true;
-            self.upgrade_streak = 0;
-            return PacerAction::SuspendVideo;
+            self.suspend_streak = self.suspend_streak.saturating_add(1);
+            if self.suspend_streak >= SUSPEND_STREAK {
+                self.suspended = true;
+                self.audio_only = true;
+                self.upgrade_streak = 0;
+                self.suspend_streak = 0;
+                return PacerAction::SuspendVideo;
+            }
+            return PacerAction::NoChange;
         }
+        // tick is at or above SUSPEND_VIDEO_BPS; reset streak (single-tick spike rejected).
+        //
+        // INVARIANT — branch ordering: every code path below this point is reachable only
+        // when `bps >= SUSPEND_VIDEO_BPS`, so `suspend_streak` has been zeroed for this
+        // tick. Subsequent emissions (`GoAudioOnly`, `RestoreVideo`, `ChangeLayer`) do
+        // NOT need to reset `suspend_streak` again — the reset is implicit via this
+        // ordering. If the suspend-entry branch is ever moved below the audio_only or
+        // layer branches, every emission below would need an explicit `suspend_streak = 0`
+        // to preserve correctness. Do not reorder without updating those resets.
+        self.suspend_streak = 0;
 
         // Audio-only mode: enter below AUDIO_ONLY_BPS, exit only above LOW_MIN_BPS.
         if self.audio_only {
@@ -325,8 +348,9 @@ mod tests {
 
     #[test]
     fn enters_suspended_below_suspend_threshold() {
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
-        let a = p.update(SUSPEND_VIDEO_BPS - 1);
+        let a = pump(&mut p, SUSPEND_VIDEO_BPS - 1, SUSPEND_STREAK);
         assert_eq!(a, PacerAction::SuspendVideo);
         assert!(p.suspended());
         assert!(p.audio_only(), "suspended implies audio_only=true");
@@ -334,8 +358,12 @@ mod tests {
 
     #[test]
     fn double_suspend_is_no_change() {
+        // updated for SUSPEND_STREAK debounce: pump SUSPEND_STREAK ticks to enter, then verify no re-emit
         let mut p = SubscriberPacer::new();
-        assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
+        assert_eq!(
+            pump(&mut p, SUSPEND_VIDEO_BPS - 1, SUSPEND_STREAK),
+            PacerAction::SuspendVideo
+        );
         assert_eq!(
             p.update(1),
             PacerAction::NoChange,
@@ -346,8 +374,9 @@ mod tests {
     #[test]
     fn grey_zone_while_suspended_is_no_change() {
         // (SUSPEND_VIDEO_BPS, AUDIO_ONLY_BPS) while suspended --- no action
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
-        p.update(SUSPEND_VIDEO_BPS - 1); // enter suspended
+        pump(&mut p, SUSPEND_VIDEO_BPS - 1, SUSPEND_STREAK); // enter suspended
         for bps in [SUSPEND_VIDEO_BPS, SUSPEND_VIDEO_BPS + 1, AUDIO_ONLY_BPS - 1] {
             assert_eq!(
                 p.update(bps),
@@ -361,8 +390,9 @@ mod tests {
     fn restore_audio_lands_in_audio_only_state() {
         // From suspended, crossing AUDIO_ONLY_BPS upward emits RestoreAudio
         // and lands in audio_only=true, suspended=false (NOT directly to LOW).
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
-        p.update(SUSPEND_VIDEO_BPS - 1);
+        pump(&mut p, SUSPEND_VIDEO_BPS - 1, SUSPEND_STREAK);
         let a = p.update(AUDIO_ONLY_BPS);
         assert_eq!(a, PacerAction::RestoreAudio);
         assert!(!p.suspended());
@@ -374,8 +404,12 @@ mod tests {
 
     #[test]
     fn full_recovery_cascade_suspend_to_video() {
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
-        assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
+        assert_eq!(
+            pump(&mut p, SUSPEND_VIDEO_BPS - 1, SUSPEND_STREAK),
+            PacerAction::SuspendVideo
+        );
         assert_eq!(p.update(AUDIO_ONLY_BPS), PacerAction::RestoreAudio);
         assert_eq!(p.update(LOW_MIN_BPS), PacerAction::RestoreVideo);
         // Upgrade still requires 3 streaks.
@@ -401,8 +435,9 @@ mod tests {
     #[test]
     fn exact_audio_only_boundary_while_suspended_triggers_restore_audio() {
         // bps == AUDIO_ONLY_BPS while suspended should trigger RestoreAudio (>=).
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
-        p.update(SUSPEND_VIDEO_BPS - 1);
+        pump(&mut p, SUSPEND_VIDEO_BPS - 1, SUSPEND_STREAK);
         let a = p.update(AUDIO_ONLY_BPS);
         assert_eq!(a, PacerAction::RestoreAudio);
     }
@@ -410,10 +445,23 @@ mod tests {
     #[test]
     fn suspend_supersedes_pending_layer_change() {
         // With a high upgrade streak, a sudden drop to suspended must NOT emit
-        // ChangeLayer first --- Suspend wins.
+        // ChangeLayer first --- Suspend wins. With debounce, requires SUSPEND_STREAK
+        // consecutive ticks below threshold; ChangeLayer must not appear in the meantime.
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
-        p.update(MEDIUM_MIN_BPS + 1); // streak=1
-        p.update(MEDIUM_MIN_BPS + 1); // streak=2
+        p.update(MEDIUM_MIN_BPS + 1); // upgrade streak=1
+        p.update(MEDIUM_MIN_BPS + 1); // upgrade streak=2
+                                      // Pump SUSPEND_STREAK - 1 ticks below threshold: must be NoChange (debouncing)
+        for _ in 0..(SUSPEND_STREAK - 1) {
+            let a = p.update(SUSPEND_VIDEO_BPS - 1);
+            assert_eq!(
+                a,
+                PacerAction::NoChange,
+                "during suspend debounce, NO action may emit (not ChangeLayer, not GoAudioOnly, not SuspendVideo)"
+            );
+            assert!(!p.suspended());
+        }
+        // Final tick triggers SuspendVideo
         let a = p.update(SUSPEND_VIDEO_BPS - 1);
         assert_eq!(a, PacerAction::SuspendVideo);
         assert!(p.suspended());
@@ -421,13 +469,72 @@ mod tests {
 
     #[test]
     fn drop_from_video_directly_to_suspend_is_one_event() {
-        // From layer=LOW (no audio_only state), a single tick to <10k must
-        // emit SuspendVideo (skipping GoAudioOnly).
+        // From layer=LOW (no audio_only state), SUSPEND_STREAK ticks to <10k must
+        // emit exactly one SuspendVideo (at the Nth tick), skipping GoAudioOnly.
+        // updated for SUSPEND_STREAK debounce
         let mut p = SubscriberPacer::new();
         assert_eq!(p.update(LOW_MIN_BPS + 1), PacerAction::NoChange);
+        // First SUSPEND_STREAK - 1 ticks: NoChange (debouncing)
+        for _ in 0..(SUSPEND_STREAK - 1) {
+            let a = p.update(SUSPEND_VIDEO_BPS - 1);
+            assert_ne!(
+                a,
+                PacerAction::GoAudioOnly,
+                "must not emit GoAudioOnly while debouncing suspend"
+            );
+            assert_ne!(a, PacerAction::SuspendVideo);
+        }
+        // Final tick: SuspendVideo
         let a = p.update(SUSPEND_VIDEO_BPS - 1);
         assert_eq!(a, PacerAction::SuspendVideo);
         assert!(p.suspended());
         assert!(p.audio_only());
+    }
+
+    // --- NEW tests for SUSPEND_STREAK debounce (F6-3) ---
+
+    #[test]
+    fn single_tick_below_suspend_threshold_does_not_suspend() {
+        let mut p = SubscriberPacer::new();
+        let action = p.update(SUSPEND_VIDEO_BPS - 1);
+        assert_eq!(
+            action,
+            PacerAction::NoChange,
+            "single-tick spike below SUSPEND_VIDEO_BPS must not enter suspended (debounce)"
+        );
+        assert!(!p.suspended());
+    }
+
+    #[test]
+    fn suspend_streak_consecutive_ticks_required() {
+        let mut p = SubscriberPacer::new();
+        // SUSPEND_STREAK - 1 ticks: still NoChange
+        for _ in 0..(SUSPEND_STREAK - 1) {
+            assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::NoChange);
+        }
+        assert!(!p.suspended());
+        // Final tick: emits SuspendVideo
+        let action = p.update(SUSPEND_VIDEO_BPS - 1);
+        assert_eq!(action, PacerAction::SuspendVideo);
+        assert!(p.suspended());
+    }
+
+    #[test]
+    fn suspend_streak_resets_on_interruption() {
+        let mut p = SubscriberPacer::new();
+        // SUSPEND_STREAK - 1 ticks below threshold
+        for _ in 0..(SUSPEND_STREAK - 1) {
+            p.update(SUSPEND_VIDEO_BPS - 1);
+        }
+        // One tick at or above threshold — streak resets
+        p.update(SUSPEND_VIDEO_BPS);
+        assert!(!p.suspended());
+        // Now another SUSPEND_STREAK - 1 ticks below should NOT trigger suspend
+        for _ in 0..(SUSPEND_STREAK - 1) {
+            assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::NoChange);
+        }
+        assert!(!p.suspended());
+        // SUSPEND_STREAKth tick triggers
+        assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
     }
 }

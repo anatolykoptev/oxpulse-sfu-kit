@@ -41,6 +41,32 @@ pub(crate) const MEDIUM_MIN_BPS: u64 = 350_000;
 /// Minimum BWE to sustain the HIGH ("f") simulcast layer --- bits/s.
 #[cfg(feature = "pacer")]
 pub(crate) const HIGH_MIN_BPS: u64 = 700_000;
+/// Consecutive ticks below `SUSPEND_VIDEO_BPS` required before the pacer
+/// enters its `suspended` sub-state. Asymmetric with `UPGRADE_STREAK`:
+/// entry mistakes cause a visible video gap, so a small (2-tick) debounce
+/// rejects single-tick TWCC spikes without delaying real-congestion response.
+///
+/// Effective response latency: `SUSPEND_STREAK × tick_interval`. At the
+/// nominal TWCC tick rate of ~50 ms, suspend-entry takes ≈100 ms; at the
+/// 100 ms BandwidthEstimate cadence, ≈200 ms. Tune in tandem with tick
+/// rate when revising.
+///
+/// Edge case: under sustained alternating-tick loss (e.g., a 50 % periodic
+/// drop pattern at the tick frequency), `SUSPEND_STREAK` never fires
+/// because the streak resets on every recovered tick. The `audio_only`
+/// path via `AUDIO_ONLY_BPS` then catches the BWE collapse instead. This
+/// is intentional: a 2-tick debounce that does NOT clear on intervening
+/// good ticks would re-introduce the spike-trigger problem this guard
+/// exists to prevent.
+///
+/// Exposed `pub` (not `pub(crate)`) so integration tests in `tests/` can
+/// import it without hardcoding the literal. Documented `#[doc(hidden)]`
+/// because it is not part of the public stable API surface; behavioural
+/// invariants observable through `Propagated::SuspendVideo` are the
+/// stable contract, not this constant.
+#[cfg(feature = "pacer")]
+#[doc(hidden)]
+pub const SUSPEND_STREAK: u8 = 2;
 /// Ticks above next tier required before upgrading (prevents thrash).
 #[cfg(feature = "pacer")]
 pub(crate) const UPGRADE_STREAK: u8 = 3;
