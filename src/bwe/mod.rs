@@ -36,6 +36,15 @@ pub(crate) const MEDIUM_MIN_BPS: u64 = 350_000;
 /// Minimum BWE to sustain the HIGH ("f") simulcast layer --- bits/s.
 #[cfg(feature = "pacer")]
 pub(crate) const HIGH_MIN_BPS: u64 = 700_000;
+/// Below this egress BWE, all video is suspended (audio-only is no longer
+/// sustainable either) — bits/s. The subscriber receives only audio.
+///
+/// Subscribers below this threshold are signalled via
+/// [`Propagated::SuspendVideo`][crate::propagate::Propagated::SuspendVideo];
+/// the actual frame drop happens in [`fanout`][crate::fanout::fanout]
+/// (Phase 7).
+#[cfg(feature = "pacer")]
+pub(crate) const SUSPEND_VIDEO_BPS: u64 = 10_000;
 /// Ticks above next tier required before upgrading (prevents thrash).
 #[cfg(feature = "pacer")]
 pub(crate) const UPGRADE_STREAK: u8 = 3;
