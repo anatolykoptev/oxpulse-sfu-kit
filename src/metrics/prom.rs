@@ -43,6 +43,18 @@ pub struct SfuMetrics {
     pub speaker_medium: GaugeVec,
     /// Per-peer long-window speaker activity score, label: `peer_id`.
     pub speaker_long: GaugeVec,
+    /// Counter — pacer suspend-video transitions. Label `direction` ∈ {"enter", "exit"}.
+    /// `enter` increments on `PacerAction::SuspendVideo` (BWE crossed below
+    /// `SUSPEND_VIDEO_BPS`); `exit` increments on `PacerAction::RestoreAudio`
+    /// (BWE recovered above `AUDIO_ONLY_BPS`). Phase 7 of the 1 KB/s resilience plan.
+    #[allow(dead_code)] // wired in Phase 7 T3
+    pacer_suspend_video_total: prometheus::IntCounterVec,
+    /// Counter — outbound video frames dropped because the subscriber's pacer
+    /// is in the `suspended` sub-state. Audio frames are not counted here
+    /// (they are forwarded in suspended state). Intentionally no `peer_id`
+    /// label to avoid cardinality blow-up across reconnect churn.
+    #[allow(dead_code)] // wired in Phase 7 T4
+    video_frames_dropped_total: prometheus::IntCounter,
 }
 
 impl SfuMetrics {
@@ -156,6 +168,21 @@ impl SfuMetrics {
         )
         .context("speaker_long_score")?);
 
+        let pacer_suspend_video_total = reg!(IntCounterVec::new(
+            Opts::new(
+                "pacer_suspend_video_total",
+                "Pacer suspend-video transitions (label `direction` = enter | exit).",
+            ),
+            &["direction"],
+        )
+        .context("pacer_suspend_video_total")?);
+
+        let video_frames_dropped_total = reg!(IntCounter::with_opts(Opts::new(
+            "video_frames_dropped_total",
+            "Outbound video frames dropped because the subscriber pacer is suspended.",
+        ))
+        .context("video_frames_dropped_total")?);
+
         Ok(Self {
             registry: Arc::new(registry),
             active_participants,
@@ -171,6 +198,8 @@ impl SfuMetrics {
             speaker_immediate,
             speaker_medium,
             speaker_long,
+            pacer_suspend_video_total,
+            video_frames_dropped_total,
         })
     }
 
@@ -197,6 +226,18 @@ impl SfuMetrics {
 
     pub(crate) fn inc_layer_selection(&self, layer: &str) {
         self.layer_selection_total.with_label_values(&[layer]).inc();
+    }
+
+    #[allow(dead_code)] // wired in Phase 7 T3
+    pub(crate) fn inc_suspend_video(&self, direction: &str) {
+        self.pacer_suspend_video_total
+            .with_label_values(&[direction])
+            .inc();
+    }
+
+    #[allow(dead_code)] // wired in Phase 7 T4
+    pub(crate) fn inc_video_frames_dropped(&self) {
+        self.video_frames_dropped_total.inc();
     }
 
     pub(crate) fn inc_client_connect(&self) {
