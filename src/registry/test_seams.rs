@@ -164,12 +164,16 @@ impl Registry {
                     });
                 }
                 PacerAction::SuspendVideo => {
+                    client.set_suspended(true);
+                    self.metrics.inc_suspend_video("enter");
                     self.to_propagate.push_back(Propagated::SuspendVideo {
                         peer_id,
                         suspended: true,
                     });
                 }
                 PacerAction::RestoreAudio => {
+                    client.set_suspended(false);
+                    self.metrics.inc_suspend_video("exit");
                     self.to_propagate.push_back(Propagated::SuspendVideo {
                         peer_id,
                         suspended: false,
@@ -178,6 +182,19 @@ impl Registry {
                 PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
             }
         }
+    }
+
+    /// Encode the registry's Prometheus metrics as text format 0.0.4.
+    ///
+    /// Useful for integration tests that assert counter values without running
+    /// a real HTTP server. Mirrors the `bind_metrics_server` + `scrape` pattern
+    /// from `tests/metrics_integration.rs` but without the network round-trip.
+    #[cfg(all(any(test, feature = "test-utils"), feature = "metrics-prometheus"))]
+    #[doc(hidden)]
+    pub fn scrape_metrics_for_tests(&self) -> String {
+        self.metrics
+            .encode_text()
+            .expect("scrape_metrics_for_tests: encode failed")
     }
 
     /// Mutable access to the `BandwidthEstimator` — for tests that need to inject

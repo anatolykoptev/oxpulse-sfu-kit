@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Phase 7 — per-client video drop on suspended state**.
+  - `Client.suspended: bool` field + `set_suspended` / `is_suspended` accessors (under `pacer` feature).
+  - `client::fanout::handle_media_data_out` drops video frames when `suspended == true`; audio continues to flow.
+  - Registry pacer-driven path (TWCC + Kalman) sets / clears the flag on `PacerAction::SuspendVideo` / `RestoreAudio`.
+  - Prometheus counters: `sfu_pacer_suspend_video_total{direction="enter"|"exit"}` (transitions) and `sfu_video_frames_dropped_total` (frames dropped while suspended). Both under `metrics-prometheus` feature.
+  - 5 new integration tests in `tests/pacer_suspend_drop.rs`.
+
+### Changed
+
+- (none)
+
+### Removed
+
+- (none)
+
 ## [0.7.0] — 2026-05-05
 
 ### Added
