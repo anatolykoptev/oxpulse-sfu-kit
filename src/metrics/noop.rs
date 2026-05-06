@@ -17,7 +17,8 @@ impl SfuMetrics {
     pub(crate) fn inc_forwarded_packets(&self, _kind: &str) {}
     pub(crate) fn inc_layer_selection(&self, _layer: &str) {}
     pub(crate) fn inc_suspend_video(&self, _direction: &str) {}
-    pub(crate) fn inc_video_frames_dropped(&self) {}
+    pub(crate) fn inc_video_frames_dropped(&self, _peer_id: u64) {}
+    pub(crate) fn reap_video_frames_dropped(&self, _peer_id: u64) {}
     pub(crate) fn inc_client_connect(&self) {}
     pub(crate) fn inc_client_disconnect(&self) {}
     pub(crate) fn inc_active_participants(&self) {}

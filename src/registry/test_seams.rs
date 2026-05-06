@@ -104,6 +104,13 @@ impl Registry {
         self.reap_dead();
     }
 
+    /// Reap per-peer metric label series for a given peer id, simulating a
+    /// disconnect without running the full lifecycle reap.
+    #[doc(hidden)]
+    pub fn reap_dead_peer_for_tests(&mut self, peer_id: crate::propagate::ClientId) {
+        self.metrics.reap_dead_peer(*peer_id);
+    }
+
     /// Wire subscriber at `sub_idx` to publisher at `pub_idx` for the track tagged
     /// with `mid_tag` - forcing the track_out into Open state.
     ///

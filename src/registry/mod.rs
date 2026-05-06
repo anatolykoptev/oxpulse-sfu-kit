@@ -96,6 +96,14 @@ impl Registry {
     /// flow to one Prometheus registry.
     pub fn insert(&mut self, mut client: Client) {
         client.metrics = self.metrics.clone();
+        // F7-1: re-resolve the cached drop counter against the registry's
+        // metrics arc (which just replaced the client's initial one). Without
+        // this the cached handle points to the throwaway metrics from new_client()
+        // and increments are invisible to the registry's scrape endpoint.
+        #[cfg(feature = "metrics-prometheus")]
+        {
+            client.video_frames_dropped = self.metrics.peer_drop_counter(*client.id);
+        }
         for entry in self.clients.iter().flat_map(|c| c.tracks_in.iter()) {
             client.handle_track_open(std::sync::Arc::downgrade(&entry.id));
         }

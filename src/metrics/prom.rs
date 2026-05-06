@@ -48,11 +48,11 @@ pub struct SfuMetrics {
     /// `SUSPEND_VIDEO_BPS`); `exit` increments on `PacerAction::RestoreAudio`
     /// (BWE recovered above `AUDIO_ONLY_BPS`). Phase 7 of the 1 KB/s resilience plan.
     pacer_suspend_video_total: prometheus::IntCounterVec,
-    /// Counter — outbound video frames dropped because the subscriber's pacer
-    /// is in the `suspended` sub-state. Audio frames are not counted here
-    /// (they are forwarded in suspended state). Intentionally no `peer_id`
-    /// label to avoid cardinality blow-up across reconnect churn.
-    video_frames_dropped_total: prometheus::IntCounter,
+    /// Per-subscriber drop count. Label `peer_id` reaped on disconnect via
+    /// [`SfuMetrics::reap_dead_peer`] to bound cardinality across reconnect
+    /// churn. Mirrors the F2b-2 reap pattern from partner-edge. Audio frames
+    /// are not counted (they are forwarded in suspended state).
+    video_frames_dropped_total: prometheus::IntCounterVec,
 }
 
 impl SfuMetrics {
@@ -175,10 +175,14 @@ impl SfuMetrics {
         )
         .context("pacer_suspend_video_total")?);
 
-        let video_frames_dropped_total = reg!(IntCounter::with_opts(Opts::new(
-            "video_frames_dropped_total",
-            "Outbound video frames dropped because the subscriber pacer is suspended.",
-        ))
+        let video_frames_dropped_total = reg!(IntCounterVec::new(
+            Opts::new(
+                "video_frames_dropped_total",
+                "Outbound video frames dropped because the subscriber pacer is suspended. \
+                 Label peer_id reaped on disconnect.",
+            ),
+            &["peer_id"],
+        )
         .context("video_frames_dropped_total")?);
 
         Ok(Self {
@@ -232,8 +236,23 @@ impl SfuMetrics {
             .inc();
     }
 
-    pub(crate) fn inc_video_frames_dropped(&self) {
-        self.video_frames_dropped_total.inc();
+    /// Pre-resolve the per-peer drop counter so the fanout hot path avoids a
+    /// per-frame `to_string()` alloc. Call once at peer admit; the returned
+    /// handle is a cheap atomic-ref-counted pointer into the underlying
+    /// `IntCounterVec`. Bounded cardinality: reaped via [`Self::reap_dead_peer`].
+    pub(crate) fn peer_drop_counter(&self, peer_id: u64) -> prometheus::IntCounter {
+        let label = peer_id.to_string();
+        self.video_frames_dropped_total
+            .with_label_values(&[label.as_str()])
+    }
+
+    /// Remove the `video_frames_dropped_total{peer_id=…}` series for a
+    /// disconnected peer.  Safe to call with an unknown `peer_id`.
+    pub(crate) fn reap_video_frames_dropped(&self, peer_id: u64) {
+        let label = peer_id.to_string();
+        let _ = self
+            .video_frames_dropped_total
+            .remove_label_values(&[label.as_str()]);
     }
 
     pub(crate) fn inc_client_connect(&self) {
@@ -300,6 +319,7 @@ impl SfuMetrics {
         let _ = self.speaker_immediate.remove_label_values(lv);
         let _ = self.speaker_medium.remove_label_values(lv);
         let _ = self.speaker_long.remove_label_values(lv);
+        self.reap_video_frames_dropped(peer_id);
     }
 }
 
