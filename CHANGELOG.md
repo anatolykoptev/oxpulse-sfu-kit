@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-06
+
+### Added (BREAKING)
+
+- **F7-1 — `peer_id` label on `sfu_video_frames_dropped_total`**.
+  - `video_frames_dropped_total` is now an `IntCounterVec` with a single
+    `peer_id` label, mirroring the F2b-2 reap pattern from partner-edge PR #46.
+  - `inc_video_frames_dropped(peer_id: u64)` — call-site updated in
+    `client::fanout::handle_media_data_out`.
+  - `SfuMetrics::reap_video_frames_dropped(peer_id: u64)` — drops the label
+    series on disconnect to bound cardinality across reconnect churn.
+  - `SfuMetrics::reap_dead_peer` now also reaps `video_frames_dropped_total`.
+  - New integration test `video_frames_dropped_label_reaped_on_disconnect`
+    verifies label presence after drops and absence after `reap_dead_peer`.
+  - **Consumers must call `SfuMetrics::reap_dead_peer(peer_id)` on disconnect**
+    (partner-edge already does this via the F2b-2 pattern).
+  - Closes F7-1 from the oxpulse-chat 1 KB/s resilience plan.
+
+### Changed
+
+- Noop stub `SfuMetrics` (feature `metrics-prometheus` disabled) updated to
+  match the new signature.
+
 ## [0.8.0] — 2026-05-05
 
 ### Added

@@ -65,6 +65,12 @@ pub struct Client {
     /// `ActiveSpeakerChanged` deliveries (skip-self check in tests).
     #[cfg(any(test, feature = "test-utils"))]
     pub(crate) delivered_active_speaker: AtomicU64,
+    /// F7-1: cached per-peer drop counter resolved once at admit so the fanout
+    /// hot path is a single atomic add with no `to_string()` alloc per frame.
+    /// Cardinality is bounded by `reap_dead`; the handle is pre-resolved here
+    /// and the `IntCounterVec` is only consulted at admit time.
+    #[cfg(feature = "metrics-prometheus")]
+    pub(crate) video_frames_dropped: prometheus::IntCounter,
     /// Per-subscriber hysteretic layer pacer driven from egress BWE readings.
     #[cfg(feature = "pacer")]
     pub(crate) pacer: crate::bwe::SubscriberPacer,

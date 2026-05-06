@@ -47,7 +47,11 @@ impl Client {
                 })
                 .unwrap_or(true);
             if is_video {
-                self.metrics.inc_video_frames_dropped();
+                // F7-1: use cached handle — single atomic add, no per-frame alloc.
+                #[cfg(feature = "metrics-prometheus")]
+                self.video_frames_dropped.inc();
+                #[cfg(not(feature = "metrics-prometheus"))]
+                self.metrics.inc_video_frames_dropped(*self.id);
                 return;
             }
         }

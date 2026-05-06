@@ -155,10 +155,78 @@ fn frames_dropped_counter_increments_per_dropped_video() {
     }
 
     let scrape = reg.scrape_metrics_for_tests();
+    // F7-1: metric now has peer_id label (IntCounterVec). sub_id=831.
     // Trailing \n: prevents "30"/"31"/etc. matching the "3" needle.
     assert!(
-        scrape.contains("sfu_video_frames_dropped_total 3\n"),
-        "video frames dropped counter must equal exactly 3:\n{scrape}"
+        scrape.contains("sfu_video_frames_dropped_total{peer_id=\"831\"} 3\n"),
+        "video frames dropped counter must equal exactly 3 with peer_id label:\n{scrape}"
+    );
+}
+
+// ── F7-1: peer_id label on video_frames_dropped_total, reaped on disconnect ──
+//
+// Strengthened vs the original single-peer version: seeding TWO subscribers and
+// asserting the survivor's series persists proves reap is *targeted*, not a
+// family-level wipe.
+
+#[test]
+fn video_frames_dropped_label_reaped_on_disconnect() {
+    let mut reg = Registry::new_for_tests();
+
+    // Publisher at idx 0; two subscribers at idx 1 (peer 851) and idx 2 (peer 852).
+    let pub_id = ClientId(850);
+    let sub_id_a = ClientId(851);
+    let sub_id_b = ClientId(852);
+    let mut publisher = new_client(pub_id);
+    let _video_track = seed_track_in(&mut publisher, 1, MediaKind::Video);
+    reg.insert(publisher);
+    reg.insert(new_client(sub_id_a));
+    reg.insert(new_client(sub_id_b));
+
+    // Wire both subscribers to the publisher's video track.
+    reg.wire_track_for_tests(1, 0, 1); // sub_a (idx 1) → publisher (idx 0)
+    reg.wire_track_for_tests(2, 0, 1); // sub_b (idx 2) → publisher (idx 0)
+
+    // Suspend BOTH subscribers.
+    pump_into_suspended(&mut reg, sub_id_a);
+    pump_into_suspended(&mut reg, sub_id_b);
+    let _ = reg.drain_propagated_for_tests();
+
+    // Drop frames for both: 10 for sub_a, 5 for sub_b (fanout hits both).
+    for _ in 0..10 {
+        let data = make_media_data(1, None);
+        reg.fanout_for_tests(&Propagated::MediaData(pub_id, data));
+    }
+
+    let before = reg.scrape_metrics_for_tests();
+    assert!(
+        before.contains(r#"peer_id="851""#),
+        "851 series must exist before reap:\n{before}"
+    );
+    assert!(
+        before.contains(r#"peer_id="852""#),
+        "852 series must exist before reap:\n{before}"
+    );
+
+    // Reap ONLY peer 851 (targeted disconnect).
+    reg.reap_dead_peer_for_tests(sub_id_a);
+
+    let after = reg.scrape_metrics_for_tests();
+    let drop_lines: Vec<&str> = after
+        .lines()
+        .filter(|l| l.starts_with("sfu_video_frames_dropped_total{"))
+        .collect();
+
+    // Reaped peer's series must be gone.
+    assert!(
+        !drop_lines.iter().any(|l| l.contains(r#"peer_id="851""#)),
+        "851 series must be reaped, got: {drop_lines:?}"
+    );
+    // CRITICAL: survivor's series must still be present (proves targeted reap,
+    // not a family wipe).
+    assert!(
+        drop_lines.iter().any(|l| l.contains(r#"peer_id="852""#)),
+        "852 series must survive targeted reap, got: {drop_lines:?}"
     );
 }
 

@@ -22,8 +22,13 @@ impl Client {
     /// [`Registry::insert`][crate::Registry::insert] is called, so all counters
     /// from all clients flow to the same Prometheus registry.
     pub fn new(rtc: SfuRtc, metrics: Arc<SfuMetrics>) -> Self {
+        let id = next_client_id();
+        // F7-1: pre-resolve the per-peer drop counter so the fanout hot path
+        // is a single atomic add with no per-frame `to_string()` alloc.
+        #[cfg(feature = "metrics-prometheus")]
+        let video_frames_dropped = metrics.peer_drop_counter(*id);
         Self {
-            id: next_client_id(),
+            id,
             origin: crate::origin::ClientOrigin::Local,
             rtc: rtc.0,
             tracks_in: Vec::new(),
@@ -34,6 +39,8 @@ impl Client {
             pending_out: VecDeque::new(),
             metrics,
             delivered_media: AtomicU64::new(0),
+            #[cfg(feature = "metrics-prometheus")]
+            video_frames_dropped,
             #[cfg(any(test, feature = "test-utils"))]
             delivered_active_speaker: AtomicU64::new(0),
             #[cfg(feature = "pacer")]
