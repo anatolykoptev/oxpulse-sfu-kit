@@ -164,12 +164,16 @@ impl Registry {
                     });
                 }
                 PacerAction::SuspendVideo => {
+                    client.set_suspended(true);
+                    self.metrics.inc_suspend_video("enter");
                     self.to_propagate.push_back(Propagated::SuspendVideo {
                         peer_id,
                         suspended: true,
                     });
                 }
                 PacerAction::RestoreAudio => {
+                    client.set_suspended(false);
+                    self.metrics.inc_suspend_video("exit");
                     self.to_propagate.push_back(Propagated::SuspendVideo {
                         peer_id,
                         suspended: false,
