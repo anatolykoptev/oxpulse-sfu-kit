@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] — 2026-05-05
 
 ### Added
 
@@ -19,21 +19,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     both the TWCC and Kalman pacer paths in the registry.
   - 9 new unit tests in `src/bwe/hysteresis.rs` and 3 integration tests in
     `tests/pacer_suspend_video.rs`.
+- **`SUSPEND_STREAK = 2` debounce** on suspend-entry (F6-3). Asymmetric
+  with `UPGRADE_STREAK = 3`: entry mistakes cause a visible video gap
+  (high cost), so a small 2-tick debounce rejects single-tick TWCC spikes
+  without delaying real-congestion response (~100–200 ms at typical TWCC
+  cadence). Recovery side unchanged (single-tick aggressive — single PLI
+  keyframe regen is cheap relative to a video gap). Const exposed as
+  `pub` + `#[doc(hidden)]` for integration-test linkage.
+- 3 new hysteresis unit tests covering the debounce contract:
+  `single_tick_below_suspend_threshold_does_not_suspend`,
+  `suspend_streak_consecutive_ticks_required`,
+  `suspend_streak_resets_on_interruption`.
 
 ### Changed
 
-- **BREAKING (semver-major, pre-1.0)** — `#[non_exhaustive]` added to
-  public enums `Propagated`, `PacerAction`, and `ClientOrigin`. Downstream
-  consumers doing exhaustive `match` on these types must add a wildcard
-  arm or explicit handling on upgrade. Within-crate matches are unaffected
-  (same-crate exemption). Phase 6+ will continue to grow these enums;
-  this consolidates one inevitable downstream break.
+- **BREAKING (semver-incompatible per pre-1.0 Cargo conventions)** —
+  `#[non_exhaustive]` added to public enums `Propagated`, `PacerAction`,
+  and `ClientOrigin`. Downstream consumers doing exhaustive `match` on
+  these types must add a wildcard arm `_ => { ... }` or explicit handling
+  on upgrade. Within-crate matches are unaffected (same-crate exemption).
+  Phase 6+ will continue to grow these enums; this consolidates one
+  inevitable downstream break.
 
 ### Removed
 
 - Stale `#![allow(dead_code, unused_imports)]` in `src/bwe/mod.rs`
   (skeleton comment from earlier development phase). Surfaced one real
   unused import in `src/bwe/subscriber.rs` — fixed.
+
+### Migration from 0.6 → 0.7
+
+Consumers of `oxpulse-sfu-kit` doing exhaustive `match` on `Propagated`,
+`PacerAction`, or `ClientOrigin` will see compile errors after upgrade.
+Add a wildcard arm:
+
+```rust
+match p {
+    Propagated::MediaData(c, data) => { /* ... */ }
+    // existing arms...
+    _ => { /* future variants */ }
+}
+```
+
+The new `Propagated::SuspendVideo { peer_id, suspended }` event is
+emitted by the registry's pacer path. To observe suspend transitions,
+add an explicit arm; otherwise the wildcard handles it as a no-op
+(the SFU itself does not yet drop video frames in fanout — that is
+Phase 7 of the 1 KB/s resilience plan).
 
 ## [0.6.0] — 2026-04-23
 
