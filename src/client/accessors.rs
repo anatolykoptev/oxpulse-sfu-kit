@@ -154,4 +154,43 @@ impl Client {
     pub fn is_relay(&self) -> bool {
         matches!(self.origin, crate::origin::ClientOrigin::RelayFromSfu(_))
     }
+
+    /// Set the suspended flag. Called by the registry pacer path when
+    /// `PacerAction::SuspendVideo` / `RestoreAudio` fires.
+    /// Only available with the `pacer` feature.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    pub fn set_suspended(&mut self, suspended: bool) {
+        self.suspended = suspended;
+    }
+
+    /// Read the suspended flag.
+    #[cfg(feature = "pacer")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+    #[must_use]
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
+    }
+}
+
+#[cfg(all(test, feature = "pacer"))]
+mod tests {
+    use crate::client::test_seed::new_client;
+    use crate::propagate::ClientId;
+
+    #[test]
+    fn suspended_default_is_false() {
+        let client = new_client(ClientId(0));
+        assert!(!client.is_suspended(), "Client::new should initialise suspended to false");
+    }
+
+    #[test]
+    fn set_suspended_round_trips() {
+        let mut client = new_client(ClientId(1));
+        assert!(!client.is_suspended());
+        client.set_suspended(true);
+        assert!(client.is_suspended());
+        client.set_suspended(false);
+        assert!(!client.is_suspended());
+    }
 }

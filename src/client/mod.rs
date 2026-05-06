@@ -68,6 +68,16 @@ pub struct Client {
     /// Per-subscriber hysteretic layer pacer driven from egress BWE readings.
     #[cfg(feature = "pacer")]
     pub(crate) pacer: crate::bwe::SubscriberPacer,
+    /// True iff the per-subscriber pacer entered its `suspended` sub-state
+    /// (egress BWE below `SUSPEND_VIDEO_BPS`). Outbound video frames are
+    /// dropped while this flag is `true`; audio continues to flow.
+    /// Set when the pacer returns `PacerAction::SuspendVideo`; cleared when
+    /// it returns `PacerAction::RestoreAudio`. Set/cleared exclusively
+    /// from the registry's pacer-driven path (`drive.rs`); never mutated
+    /// by client code directly.
+    /// Only present with `pacer` feature.
+    #[cfg(feature = "pacer")]
+    pub(crate) suspended: bool,
     /// Maximum AV1 temporal layer to forward to this subscriber (default = all).
     #[cfg(feature = "av1-dd")]
     pub(crate) max_temporal_layer: u8,

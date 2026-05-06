@@ -38,6 +38,8 @@ impl Client {
             delivered_active_speaker: AtomicU64::new(0),
             #[cfg(feature = "pacer")]
             pacer: crate::bwe::SubscriberPacer::new(),
+            #[cfg(feature = "pacer")]
+            suspended: false,
             #[cfg(feature = "av1-dd")]
             max_temporal_layer: u8::MAX, // default: forward all temporal layers
             #[cfg(feature = "vfm")]
