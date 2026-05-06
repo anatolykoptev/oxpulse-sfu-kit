@@ -15,7 +15,6 @@ impl SfuMetrics {
 
     pub(crate) fn inc_forwarded_packets(&self, _kind: &str) {}
     pub(crate) fn inc_layer_selection(&self, _layer: &str) {}
-    #[allow(dead_code)] // wired in Phase 7 T3
     pub(crate) fn inc_suspend_video(&self, _direction: &str) {}
     #[allow(dead_code)] // wired in Phase 7 T4
     pub(crate) fn inc_video_frames_dropped(&self) {}

@@ -47,7 +47,6 @@ pub struct SfuMetrics {
     /// `enter` increments on `PacerAction::SuspendVideo` (BWE crossed below
     /// `SUSPEND_VIDEO_BPS`); `exit` increments on `PacerAction::RestoreAudio`
     /// (BWE recovered above `AUDIO_ONLY_BPS`). Phase 7 of the 1 KB/s resilience plan.
-    #[allow(dead_code)] // wired in Phase 7 T3
     pacer_suspend_video_total: prometheus::IntCounterVec,
     /// Counter — outbound video frames dropped because the subscriber's pacer
     /// is in the `suspended` sub-state. Audio frames are not counted here
@@ -228,7 +227,6 @@ impl SfuMetrics {
         self.layer_selection_total.with_label_values(&[layer]).inc();
     }
 
-    #[allow(dead_code)] // wired in Phase 7 T3
     pub(crate) fn inc_suspend_video(&self, direction: &str) {
         self.pacer_suspend_video_total
             .with_label_values(&[direction])
