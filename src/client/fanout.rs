@@ -20,6 +20,38 @@ impl Client {
     /// [`desired_layer`][Client::desired_layer]) and increments Prometheus
     /// counters for forwarded packets and layer selections.
     pub fn handle_media_data_out(&mut self, origin: ClientId, data: &SfuMediaPayload) {
+        // Suspended-state filter: drop video frames when the per-subscriber
+        // pacer is in the `suspended` sub-state. Audio frames continue to flow.
+        // Phase 7 of the 1 KB/s resilience plan.
+        #[cfg(feature = "pacer")]
+        if self.suspended {
+            // Detect media kind by matching the inbound track on origin + mid.
+            // Defensive default = `true` (treat unknown as video → drop): a
+            // suspended subscriber's whole point is bandwidth conservation, so
+            // when track metadata is unavailable (Weak::upgrade fails on a
+            // disconnected publisher, or no matching tracks_out entry) we bias
+            // toward dropping rather than forwarding. This inverts the polarity
+            // of the simulcast layer filter below — that one biases toward
+            // forward because uncertainty there means "no simulcast" not "no
+            // video"; here uncertainty must not leak bandwidth.
+            let is_video = self
+                .tracks_out
+                .iter()
+                .find_map(|o| {
+                    let i = o.track_in.upgrade()?;
+                    if i.origin == origin && i.mid == data.mid().to_str0m() {
+                        Some(matches!(i.kind, MediaKind::Video))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(true);
+            if is_video {
+                self.metrics.inc_video_frames_dropped();
+                return;
+            }
+        }
+
         // Use LayerSelector to pick the best available RID for this subscriber.
         // active_rids() is empty until the first video packet arrives — fall back
         // to the old RID-exact match in that case (BestFitSelector handles empty correctly).

@@ -52,7 +52,6 @@ pub struct SfuMetrics {
     /// is in the `suspended` sub-state. Audio frames are not counted here
     /// (they are forwarded in suspended state). Intentionally no `peer_id`
     /// label to avoid cardinality blow-up across reconnect churn.
-    #[allow(dead_code)] // wired in Phase 7 T4
     video_frames_dropped_total: prometheus::IntCounter,
 }
 
@@ -233,7 +232,6 @@ impl SfuMetrics {
             .inc();
     }
 
-    #[allow(dead_code)] // wired in Phase 7 T4
     pub(crate) fn inc_video_frames_dropped(&self) {
         self.video_frames_dropped_total.inc();
     }
