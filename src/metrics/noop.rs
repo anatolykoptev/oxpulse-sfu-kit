@@ -7,6 +7,7 @@
 #[derive(Clone, Debug, Default)]
 pub struct SfuMetrics;
 
+#[allow(dead_code)]
 impl SfuMetrics {
     /// No-op constructor — metrics are disabled. Always succeeds.
     pub fn new_default() -> Self {

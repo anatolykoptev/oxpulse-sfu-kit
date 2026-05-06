@@ -14,7 +14,11 @@
 //!   `delivered_media_count(idx)` take insertion-order indices.
 //!   All fanout helpers take `ClientId` via `Propagated`.
 
-#![cfg(all(feature = "pacer", feature = "test-utils", feature = "metrics-prometheus"))]
+#![cfg(all(
+    feature = "pacer",
+    feature = "test-utils",
+    feature = "metrics-prometheus"
+))]
 
 use oxpulse_sfu_kit::bwe::SUSPEND_STREAK;
 use oxpulse_sfu_kit::client::test_seed::{make_media_data, new_client, seed_track_in};
@@ -111,7 +115,7 @@ fn restored_subscriber_resumes_video() {
 
     // Enter suspended, then exit (RestoreAudio), then climb to video (RestoreVideo).
     pump_into_suspended(&mut reg, sub_id);
-    reg.drive_pacer_for_tests(sub_id, 80_000);  // RestoreAudio: suspended=false
+    reg.drive_pacer_for_tests(sub_id, 80_000); // RestoreAudio: suspended=false
     reg.drive_pacer_for_tests(sub_id, 200_000); // RestoreVideo: audio_only=false
     let _ = reg.drain_propagated_for_tests();
 

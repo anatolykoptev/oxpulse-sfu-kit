@@ -181,7 +181,10 @@ mod tests {
     #[test]
     fn suspended_default_is_false() {
         let client = new_client(ClientId(0));
-        assert!(!client.is_suspended(), "Client::new should initialise suspended to false");
+        assert!(
+            !client.is_suspended(),
+            "Client::new should initialise suspended to false"
+        );
     }
 
     #[test]
