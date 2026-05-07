@@ -6,10 +6,22 @@
 use std::sync::atomic::Ordering;
 
 use super::Client;
+use crate::dc::ChannelConfig;
 use crate::ids::SfuRid;
 use crate::net::IncomingDatagram;
 
 impl Client {
+    /// Pre-registered DataChannels to open during SDP negotiation.
+    ///
+    /// The application signalling layer (e.g. `partner-edge`) reads this slice
+    /// and calls `Rtc::open_stream` for each entry. Populated via
+    /// [`with_extra_dc`][Client::with_extra_dc], [`with_chat_dcs`][Client::with_chat_dcs],
+    /// and [`with_voice_dc`][Client::with_voice_dc].
+    #[must_use]
+    pub fn extra_dcs(&self) -> &[ChannelConfig] {
+        &self.extra_dcs
+    }
+
     /// This subscriber's current desired simulcast layer.
     #[must_use]
     pub fn desired_layer(&self) -> SfuRid {

@@ -1,6 +1,6 @@
 [package]
 name = "oxpulse-sfu-kit"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 rust-version = "1.86"
 license = "MIT OR Apache-2.0"
@@ -61,6 +61,10 @@ required-features = ["test-utils", "active-speaker"]
 [[test]]
 name = "metrics_integration"
 required-features = ["test-utils", "metrics-prometheus"]
+
+[[test]]
+name = "voice_dc"
+required-features = ["test-utils"]
 
 [[example]]
 name = "basic-sfu"
