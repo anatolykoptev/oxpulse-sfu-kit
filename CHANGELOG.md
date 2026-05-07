@@ -14,22 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Client::with_extra_dc(label, id, cfg)` — generic builder for opening a
   third-party DataChannel against this kit's str0m peer. The new building
   block under `with_chat_dcs` and `with_voice_dc`.
-- `Client::with_voice_dc(max_pkt_lifetime_ms)` — Phase 8 voice DC convenience.
-  Opens id=6 with `Reliability::MaxPacketLifetime` for the Codec2-WASM
-  voice path described in `oxpulse-chat` Phase 8 plan
+- `Client::with_chat_dcs()` — convenience shim opening the two standard OxPulse
+  chat DataChannels: id=4 (`"chat-data"`, reliable+ordered) and id=5
+  (`"chat-ctrl"`, unreliable+`max_retransmits=0`). Did not exist before 0.10.0;
+  the method was net-new (not a refactor of a prior implementation).
+- `Client::with_voice_dc(max_pkt_lifetime_ms: u32)` — Phase 8 voice DC
+  convenience. Opens id=6 with `Reliability::MaxPacketLifetime` for the
+  Codec2-WASM voice path described in `oxpulse-chat` Phase 8 plan
   (`docs/superpowers/plans/2026-05-07-phase8-codec2-voice-dc-plan.md`).
+  Parameter is `u32` (spec contract range); callers converting to str0m
+  must `try_into::<u16>()` (str0m's `MaxPacketLifetime.lifetime` is `u16`).
 - New `dc::ChannelConfig` wrapper with three constructors:
   `reliable_ordered()`, `unreliable_max_retransmits(n)`,
-  `unreliable_max_lifetime_ms(ms)`. Centralises the str0m `Reliability`
-  variant choice.
+  `unreliable_max_lifetime(ms)`. Centralises the str0m `Reliability`
+  variant choice. All fields are `pub(crate)`; use the accessor methods
+  (`id()`, `label()`, `ordered()`, `max_packet_lifetime_ms()`,
+  `max_retransmits()`) for read access.
+- `Client::extra_dcs() -> &[ChannelConfig]` public accessor — returns the
+  slice of pre-registered DataChannels. The `extra_dcs` field is now
+  `pub(crate)` to prevent direct struct-literal construction that could
+  violate the mutual-exclusion invariant on `max_packet_lifetime_ms` /
+  `max_retransmits`.
 - Test seams `Client::dc_config_for(label)` and `Client::dc_count()`,
   gated behind the existing `test-utils` feature.
 
 ### Changed
 
-- `Client::with_chat_dcs()` is now a thin shim over `with_extra_dc`. No
-  behaviour change for callers — id=4 (chat-data, reliable+ordered) and
-  id=5 (chat-ctrl, unreliable+`max_retransmits=0`) preserved.
+- (none)
 
 ## [0.9.0] — 2026-05-06
 

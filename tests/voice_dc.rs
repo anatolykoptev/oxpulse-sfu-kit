@@ -13,12 +13,16 @@ use oxpulse_sfu_kit::{ChannelConfig, Client};
 fn with_voice_dc_opens_id_6_unreliable_lifetime_200() {
     let client = Client::new_for_test().with_voice_dc(200);
     let cfg = client.dc_config_for("voice").expect("voice dc registered");
-    assert_eq!(cfg.id, 6, "voice DC must use id=6");
-    assert!(!cfg.ordered, "voice DC must be unordered");
+    assert_eq!(cfg.id(), 6, "voice DC must use id=6");
+    assert!(!cfg.ordered(), "voice DC must be unordered");
     assert_eq!(
-        cfg.max_packet_lifetime_ms,
+        cfg.max_packet_lifetime_ms(),
         Some(200),
         "lifetime must be 200 ms"
+    );
+    assert!(
+        cfg.max_retransmits().is_none(),
+        "voice DC must not set max_retransmits"
     );
 }
 
@@ -40,6 +44,23 @@ fn with_chat_dcs_still_opens_id_4_and_5() {
     let ctrl = client
         .dc_config_for("chat-ctrl")
         .expect("chat-ctrl registered");
-    assert_eq!(chat.id, 4);
-    assert_eq!(ctrl.id, 5);
+
+    assert_eq!(chat.id(), 4);
+    assert!(chat.ordered(), "chat-data must be ordered");
+    assert!(
+        chat.max_packet_lifetime_ms().is_none(),
+        "chat-data is reliable: no lifetime cap"
+    );
+    assert!(
+        chat.max_retransmits().is_none(),
+        "chat-data is reliable: no retransmit cap"
+    );
+
+    assert_eq!(ctrl.id(), 5);
+    assert!(!ctrl.ordered(), "chat-ctrl must be unordered");
+    assert_eq!(ctrl.max_retransmits(), Some(0));
+    assert!(
+        ctrl.max_packet_lifetime_ms().is_none(),
+        "chat-ctrl uses max_retransmits, not lifetime"
+    );
 }

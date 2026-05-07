@@ -25,6 +25,17 @@ impl Client {
     /// ```
     #[must_use]
     pub fn with_extra_dc(mut self, label: &str, id: u16, cfg: ChannelConfig) -> Self {
+        debug_assert!(
+            !self.extra_dcs.iter().any(|c| c.id() == id),
+            "DC id {} already registered (existing labels: {:?})",
+            id,
+            self.extra_dcs.iter().map(|c| c.label()).collect::<Vec<_>>()
+        );
+        debug_assert!(
+            cfg.max_packet_lifetime_ms.is_none() || cfg.max_retransmits.is_none(),
+            "ChannelConfig invariant violated: max_packet_lifetime_ms and max_retransmits \
+             cannot both be Some (label={label}, id={id})"
+        );
         let mut entry = cfg;
         entry.id = id;
         entry.label = label.to_string();
@@ -51,7 +62,7 @@ impl Client {
     /// For voice control signals, 200 ms is the recommended lifetime — packets older
     /// than that are useless and should be discarded.
     #[must_use]
-    pub fn with_voice_dc(self, max_pkt_lifetime_ms: u16) -> Self {
+    pub fn with_voice_dc(self, max_pkt_lifetime_ms: u32) -> Self {
         self.with_extra_dc(
             "voice",
             6,
@@ -79,7 +90,7 @@ impl Client {
     /// Returns `None` if no DC with that label has been registered.
     #[must_use]
     pub fn dc_config_for(&self, label: &str) -> Option<&ChannelConfig> {
-        self.extra_dcs.iter().find(|dc| dc.label == label)
+        self.extra_dcs.iter().find(|dc| dc.label() == label)
     }
 
     /// Number of DataChannels registered via `with_extra_dc` (and its shims).

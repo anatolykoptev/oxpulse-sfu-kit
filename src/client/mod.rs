@@ -96,8 +96,9 @@ pub struct Client {
     ///
     /// Populated via [`Client::with_extra_dc`] / [`Client::with_chat_dcs`] /
     /// [`Client::with_voice_dc`]. Read by the application signalling layer
-    /// during SDP negotiation to call `Rtc::open_stream`.
-    pub extra_dcs: Vec<ChannelConfig>,
+    /// via [`Client::extra_dcs()`][Client::extra_dcs] during SDP negotiation
+    /// to call `Rtc::open_stream`.
+    pub(crate) extra_dcs: Vec<ChannelConfig>,
 }
 
 impl Client {

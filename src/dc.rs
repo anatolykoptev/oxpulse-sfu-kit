@@ -16,28 +16,42 @@
 
 /// Stable configuration descriptor for a DataChannel pre-registration.
 ///
-/// One `ChannelConfig` is pushed into [`Client::extra_dcs`] by every
+/// One `ChannelConfig` is pushed into the client's DC list by every
 /// `with_extra_dc` / `with_chat_dcs` / `with_voice_dc` call.
-/// The SFU application (e.g. `partner-edge`) reads these out during
+/// The SFU application (e.g. `partner-edge`) reads these out via
+/// [`Client::extra_dcs()`][crate::Client::extra_dcs] during
 /// offer/answer negotiation and passes them to `Rtc::open_stream`.
+///
+/// # Invariant
+///
+/// Exactly one of `max_packet_lifetime_ms` and `max_retransmits` is `Some`
+/// for unreliable channels; both are `None` for reliable channels.
+/// Both being `Some` simultaneously is undefined behaviour in str0m.
+/// The three constructors enforce this; constructing `ChannelConfig` via
+/// struct literal outside this module is not possible (fields are
+/// `pub(crate)`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChannelConfig {
     /// SCTP stream identifier. Must be unique per peer-connection.
-    pub id: u16,
+    pub(crate) id: u16,
     /// Human-readable channel label (e.g. `"chat-data"`, `"voice"`).
-    pub label: String,
+    pub(crate) label: String,
     /// Whether in-order delivery is required.
-    pub ordered: bool,
+    pub(crate) ordered: bool,
     /// Maximum packet lifetime in milliseconds.
     ///
     /// Maps to [`str0m::channel::Reliability::MaxPacketLifetime`].
     /// `None` = use retransmit policy or reliable delivery.
-    pub max_packet_lifetime_ms: Option<u16>,
+    ///
+    /// Stored as `u32` for range parity with the spec contract.
+    /// Note: str0m's internal `Reliability::MaxPacketLifetime.lifetime`
+    /// is `u16`; callers converting to str0m must `try_into::<u16>()`.
+    pub(crate) max_packet_lifetime_ms: Option<u32>,
     /// Maximum number of retransmits before the packet is discarded.
     ///
     /// Maps to [`str0m::channel::Reliability::MaxRetransmits`].
     /// `None` = use lifetime or reliable delivery.
-    pub max_retransmits: Option<u16>,
+    pub(crate) max_retransmits: Option<u16>,
 }
 
 impl ChannelConfig {
@@ -74,8 +88,11 @@ impl ChannelConfig {
     ///
     /// Maps to [`str0m::channel::Reliability::MaxPacketLifetime`].
     /// Used by `with_voice_dc` for low-latency voice data signalling (id=6).
+    ///
+    /// Note: str0m's internal representation uses `u16`; callers converting to
+    /// str0m must `try_into::<u16>()` on the stored value.
     #[must_use]
-    pub fn unreliable_max_lifetime(lifetime_ms: u16) -> Self {
+    pub fn unreliable_max_lifetime(lifetime_ms: u32) -> Self {
         Self {
             id: 0,
             label: String::new(),
@@ -83,5 +100,41 @@ impl ChannelConfig {
             max_packet_lifetime_ms: Some(lifetime_ms),
             max_retransmits: None,
         }
+    }
+
+    /// SCTP stream identifier. Must be unique per peer-connection.
+    #[must_use]
+    pub fn id(&self) -> u16 {
+        self.id
+    }
+
+    /// Human-readable channel label (e.g. `"chat-data"`, `"voice"`).
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Whether in-order delivery is required.
+    #[must_use]
+    pub fn ordered(&self) -> bool {
+        self.ordered
+    }
+
+    /// Maximum packet lifetime in milliseconds, if set.
+    ///
+    /// `Some` only for unreliable channels using `Reliability::MaxPacketLifetime`.
+    /// Mutually exclusive with [`max_retransmits`][Self::max_retransmits].
+    #[must_use]
+    pub fn max_packet_lifetime_ms(&self) -> Option<u32> {
+        self.max_packet_lifetime_ms
+    }
+
+    /// Maximum number of retransmits before discarding, if set.
+    ///
+    /// `Some` only for unreliable channels using `Reliability::MaxRetransmits`.
+    /// Mutually exclusive with [`max_packet_lifetime_ms`][Self::max_packet_lifetime_ms].
+    #[must_use]
+    pub fn max_retransmits(&self) -> Option<u16> {
+        self.max_retransmits
     }
 }
