@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-07
+
+### Added
+
+- `Client::with_extra_dc(label, id, cfg)` — generic builder for opening a
+  third-party DataChannel against this kit's str0m peer. The new building
+  block under `with_chat_dcs` and `with_voice_dc`.
+- `Client::with_voice_dc(max_pkt_lifetime_ms)` — Phase 8 voice DC convenience.
+  Opens id=6 with `Reliability::MaxPacketLifetime` for the Codec2-WASM
+  voice path described in `oxpulse-chat` Phase 8 plan
+  (`docs/superpowers/plans/2026-05-07-phase8-codec2-voice-dc-plan.md`).
+- New `dc::ChannelConfig` wrapper with three constructors:
+  `reliable_ordered()`, `unreliable_max_retransmits(n)`,
+  `unreliable_max_lifetime_ms(ms)`. Centralises the str0m `Reliability`
+  variant choice.
+- Test seams `Client::dc_config_for(label)` and `Client::dc_count()`,
+  gated behind the existing `test-utils` feature.
+
+### Changed
+
+- `Client::with_chat_dcs()` is now a thin shim over `with_extra_dc`. No
+  behaviour change for callers — id=4 (chat-data, reliable+ordered) and
+  id=5 (chat-ctrl, unreliable+`max_retransmits=0`) preserved.
+
 ## [0.9.0] — 2026-05-06
 
 ### Added (BREAKING)

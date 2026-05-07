@@ -17,6 +17,7 @@ use std::time::Instant;
 use str0m::media::{KeyframeRequestKind, MediaData, MediaKind, Mid, Rid};
 use str0m::{Event, IceConnectionState, Output, Rtc};
 
+use crate::dc::ChannelConfig;
 use crate::ids::SfuRid;
 use crate::metrics::SfuMetrics;
 use crate::net::{IncomingDatagram, OutgoingDatagram};
@@ -24,6 +25,7 @@ use crate::propagate::{ClientId, Propagated};
 
 pub mod accessors;
 pub mod construct;
+pub mod dc_builder;
 pub mod fanout;
 pub mod keyframe;
 pub mod layer;
@@ -90,6 +92,12 @@ pub struct Client {
     /// Maximum RFC 9626 temporal layer to forward to this subscriber (default = all).
     #[cfg(feature = "vfm")]
     pub(crate) max_vfm_temporal_layer: u8,
+    /// Pre-registered DataChannels to open during offer/answer.
+    ///
+    /// Populated via [`Client::with_extra_dc`] / [`Client::with_chat_dcs`] /
+    /// [`Client::with_voice_dc`]. Read by the application signalling layer
+    /// during SDP negotiation to call `Rtc::open_stream`.
+    pub extra_dcs: Vec<ChannelConfig>,
 }
 
 impl Client {
