@@ -60,6 +60,76 @@ impl BandwidthEstimator {
         sub.loss = super::loss::LossEstimator::new(bps);
         sub.native_estimate_bps = None; // remove ceiling so Kalman/loss dominate
     }
+
+    /// Enable the per-subscriber [`GoogCcEstimator`] for `id`.
+    ///
+    /// Sets `PerSubscriber.googcc = Some(GoogCcEstimator::new())` so the
+    /// estimator participates in [`Self::estimate_bps`] as an additional
+    /// ceiling (delegated to [`PerSubscriber::combined_bps`]).
+    ///
+    /// Idempotent — calling twice on the same subscriber preserves the
+    /// existing estimator state (does NOT reset).
+    ///
+    /// After enabling, feed packet timing via
+    /// [`Self::googcc_for_subscriber_mut`].
+    ///
+    /// # Example
+    /// ```no_run
+    /// # #[cfg(feature = "googcc-bwe")]
+    /// # {
+    /// use oxpulse_sfu_kit::BandwidthEstimator;
+    /// use oxpulse_sfu_kit::ClientId;
+    ///
+    /// let mut est = BandwidthEstimator::new();
+    /// est.enable_googcc_for_subscriber(ClientId(42));
+    /// // Now est.googcc_for_subscriber_mut(ClientId(42)) returns Some(&mut _).
+    /// # }
+    /// ```
+    ///
+    /// [`GoogCcEstimator`]: super::googcc::GoogCcEstimator
+    #[cfg(feature = "googcc-bwe")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+    pub fn enable_googcc_for_subscriber(&mut self, id: ClientId) {
+        let sub = self.get_or_insert(id);
+        if sub.googcc.is_none() {
+            sub.googcc = Some(super::googcc::GoogCcEstimator::new());
+        }
+    }
+
+    /// Mutable accessor to the per-subscriber [`GoogCcEstimator`] for feeding
+    /// packet arrival timing from the TWCC handler.
+    ///
+    /// Returns `None` if either the subscriber doesn't exist or GoogCC was
+    /// never enabled for it via [`Self::enable_googcc_for_subscriber`].
+    ///
+    /// # Example
+    /// ```no_run
+    /// # #[cfg(feature = "googcc-bwe")]
+    /// # {
+    /// use oxpulse_sfu_kit::BandwidthEstimator;
+    /// use oxpulse_sfu_kit::ClientId;
+    ///
+    /// let mut est = BandwidthEstimator::new();
+    /// let id = ClientId(7);
+    /// est.enable_googcc_for_subscriber(id);
+    ///
+    /// // From the TWCC handler:
+    /// if let Some(gcc) = est.googcc_for_subscriber_mut(id) {
+    ///     gcc.on_receive(/* arrival_ms */ 100.0, /* send_ms */ 95.0, /* loss */ 0.0);
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// [`GoogCcEstimator`]: super::googcc::GoogCcEstimator
+    #[cfg(feature = "googcc-bwe")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+    #[must_use]
+    pub fn googcc_for_subscriber_mut(
+        &mut self,
+        id: ClientId,
+    ) -> Option<&mut super::googcc::GoogCcEstimator> {
+        self.subscribers.get_mut(&id)?.googcc.as_mut()
+    }
 }
 
 use super::feedback::{ingest_twcc, TwccFeedback};
@@ -138,6 +208,78 @@ mod tests {
         est.record_client_hint(id(2), 400_000, now);
         let bps = est.estimate_bps(id(2), now).unwrap();
         assert!(bps <= 400_100, "hint ceiling not applied: {bps}");
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn enable_googcc_creates_estimator_when_missing() {
+        let mut est = BandwidthEstimator::new();
+        assert!(est.googcc_for_subscriber_mut(id(10)).is_none());
+        est.enable_googcc_for_subscriber(id(10));
+        assert!(est.googcc_for_subscriber_mut(id(10)).is_some());
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn enable_googcc_is_idempotent_preserves_state() {
+        let mut est = BandwidthEstimator::new();
+        est.enable_googcc_for_subscriber(id(11));
+        // Feed one packet to mutate internal state.
+        est.googcc_for_subscriber_mut(id(11))
+            .unwrap()
+            .on_receive(100.0, 95.0, 0.0);
+        let bps_after_feed = est.googcc_for_subscriber_mut(id(11)).unwrap().current_bps();
+
+        // Second enable must NOT reset the estimator.
+        est.enable_googcc_for_subscriber(id(11));
+        let bps_after_reenable = est.googcc_for_subscriber_mut(id(11)).unwrap().current_bps();
+        assert_eq!(
+            bps_after_feed, bps_after_reenable,
+            "enable_googcc_for_subscriber must be idempotent"
+        );
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn googcc_for_subscriber_mut_returns_none_when_disabled() {
+        let mut est = BandwidthEstimator::new();
+        // Subscriber exists (via record_native_estimate) but googcc never enabled.
+        est.record_native_estimate(id(12), 1_000_000.0);
+        assert!(est.googcc_for_subscriber_mut(id(12)).is_none());
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn googcc_for_subscriber_mut_returns_none_for_unknown_subscriber() {
+        let mut est = BandwidthEstimator::new();
+        assert!(est.googcc_for_subscriber_mut(id(99)).is_none());
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn googcc_ceiling_applies_to_estimate_bps() {
+        let mut est = BandwidthEstimator::new();
+        let now = Instant::now();
+        est.force_high_estimate_for_tests(id(13), 5_000_000.0);
+        // Without GoogCC, estimate is high.
+        let bps_before = est.estimate_bps(id(13), now).unwrap();
+        assert!(
+            bps_before > 1_000_000,
+            "expected high estimate: {bps_before}"
+        );
+
+        // Enable GoogCC and feed loss to drive it down.
+        est.enable_googcc_for_subscriber(id(13));
+        let gcc = est.googcc_for_subscriber_mut(id(13)).unwrap();
+        // GoogCC starts at INITIAL_BPS=500_000 and decays under high loss.
+        for i in 0..20 {
+            gcc.on_receive(i as f64 * 10.0, i as f64 * 10.0, 0.5);
+        }
+        let bps_after = est.estimate_bps(id(13), now).unwrap();
+        assert!(
+            bps_after < bps_before,
+            "GoogCC ceiling did not apply: before={bps_before}, after={bps_after}"
+        );
     }
 
     #[test]

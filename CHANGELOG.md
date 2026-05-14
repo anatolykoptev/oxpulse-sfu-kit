@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.4] — 2026-05-14
+
+### Added
+
+- **`BandwidthEstimator::enable_googcc_for_subscriber(id)`** (feature
+  `googcc-bwe`) — enables the per-subscriber `GoogCcEstimator` from
+  outside the crate. Idempotent: calling twice preserves estimator
+  state. Closes the consumer-facing gap left by v0.11.0: prior to this,
+  `get_or_insert` was `pub(crate)` so consumers could not set
+  `PerSubscriber.googcc = Some(...)`. Unblocks `oxpulse-partner-edge`
+  PR #116, which previously had to carry a parallel `GoogCcEstimator`
+  on its own `Client` struct.
+- **`BandwidthEstimator::googcc_for_subscriber_mut(id) -> Option<&mut GoogCcEstimator>`**
+  (feature `googcc-bwe`) — mutable accessor for feeding packet timing
+  from the consumer's TWCC handler. Returns `None` if the subscriber
+  doesn't exist OR GoogCC was never enabled for it.
+- **Crate-root re-exports** (audit per code-quality reviewer):
+  `BandwidthEstimator`, `PerSubscriber`, `ClientHint`, `DelayEstimator`,
+  `LossEstimator` (all gated on `kalman-bwe`); `TrackIn`, `InvalidRid`,
+  `RawRtc`, `RawRtcConfig`, `rtc_config`, `udp_loop::bind`,
+  `udp_loop::serve`. Consumers no longer need to spell out
+  `oxpulse_sfu_kit::bwe::estimator::*` etc. — every documented public
+  API is reachable as `oxpulse_sfu_kit::X`.
+
+### Tests
+
+- 5 new tests covering `enable_googcc_for_subscriber`: missing-creates,
+  idempotent-preserves-state, accessor-returns-none-when-disabled,
+  accessor-returns-none-for-unknown-subscriber, ceiling-applies-to-estimate.
+- Doctest on the two new methods showing the canonical wiring recipe.
+
+Total: **196 tests pass**, clippy clean, `cargo fmt --check` clean.
+Closes #17.
+
 ## [0.11.3] — 2026-05-14
 
 ### Changed

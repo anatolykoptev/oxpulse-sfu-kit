@@ -78,6 +78,9 @@ pub const UPGRADE_STREAK: u8 = 3;
 #[cfg(feature = "kalman-bwe")]
 pub mod estimator;
 #[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+pub use estimator::BandwidthEstimator;
+#[cfg(feature = "kalman-bwe")]
 pub mod feedback;
 #[cfg(feature = "kalman-bwe")]
 pub mod kalman;
