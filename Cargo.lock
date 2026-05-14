@@ -1099,6 +1099,7 @@ dependencies = [
  "axum",
  "clap",
  "hdrhistogram",
+ "libc",
  "prometheus",
  "reqwest",
  "rust-dominant-speaker",
