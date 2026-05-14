@@ -85,3 +85,10 @@ pub mod kalman;
 pub mod loss;
 #[cfg(feature = "kalman-bwe")]
 pub mod subscriber;
+
+#[cfg(feature = "googcc-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+pub mod googcc;
+#[cfg(feature = "googcc-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+pub use googcc::GoogCcEstimator;

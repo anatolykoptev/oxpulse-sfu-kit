@@ -5,6 +5,8 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "googcc-bwe")]
+use super::googcc::GoogCcEstimator;
 use super::kalman::DelayEstimator;
 use super::loss::LossEstimator;
 
@@ -46,6 +48,12 @@ pub struct PerSubscriber {
     pub native_estimate_bps: Option<f64>,
     /// Browser-reported budget hint (additional ceiling, expires after 5s).
     pub client_hint: Option<ClientHint>,
+    /// GoogCC v2 per-subscriber estimator (trendline + AIMD).
+    ///
+    /// When `Some`, its estimate is included as an additional ceiling in
+    /// [`Self::combined_bps`]. Enabled via the `googcc-bwe` feature.
+    #[cfg(feature = "googcc-bwe")]
+    pub googcc: Option<GoogCcEstimator>,
 }
 
 impl PerSubscriber {
@@ -60,6 +68,8 @@ impl PerSubscriber {
             rtt: None,
             native_estimate_bps: None,
             client_hint: None,
+            #[cfg(feature = "googcc-bwe")]
+            googcc: None,
         }
     }
 
@@ -74,6 +84,12 @@ impl PerSubscriber {
         let after_native = match self.native_estimate_bps {
             Some(native) => base.min(native),
             None => base,
+        };
+
+        #[cfg(feature = "googcc-bwe")]
+        let after_native = match &self.googcc {
+            Some(gcc) => after_native.min(gcc.current_bps() as f64),
+            None => after_native,
         };
 
         let after_hint = match self.client_hint {
@@ -159,6 +175,46 @@ mod tests {
         assert!(
             combined > 1_000.0,
             "stale client hint should be ignored, got {combined}"
+        );
+    }
+}
+
+#[cfg(all(test, feature = "googcc-bwe"))]
+mod googcc_integration_tests {
+    use super::*;
+    use crate::bwe::googcc::GoogCcEstimator;
+
+    #[test]
+    fn googcc_acts_as_ceiling_when_set() {
+        let now = Instant::now();
+        let mut sub = PerSubscriber::new();
+        // Force Kalman/loss high
+        sub.delay = DelayEstimator::new(5_000_000.0);
+        sub.loss = LossEstimator::new(5_000_000.0);
+        // GoogCC at a lower estimate
+        let mut gcc = GoogCcEstimator::new();
+        gcc.force_bps_for_tests(300_000);
+        sub.googcc = Some(gcc);
+
+        let combined = sub.combined_bps(now);
+        assert!(
+            combined <= 300_100.0,
+            "GoogCC ceiling not applied: {combined}"
+        );
+    }
+
+    #[test]
+    fn googcc_none_does_not_affect_combined() {
+        let now = Instant::now();
+        let mut sub = PerSubscriber::new();
+        sub.delay = DelayEstimator::new(1_000_000.0);
+        sub.loss = LossEstimator::new(1_000_000.0);
+        // googcc = None (default)
+        let combined = sub.combined_bps(now);
+        // Should be ~1Mbps (from delay/loss), not artificially capped
+        assert!(
+            combined > 900_000.0,
+            "missing GoogCC should not cap estimate: {combined}"
         );
     }
 }

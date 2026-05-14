@@ -116,6 +116,9 @@ pub use bandwidth::BandwidthEstimate;
 #[cfg(feature = "kalman-bwe")]
 #[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
 pub use bwe::feedback::{TwccFeedback, TwccSample};
+#[cfg(feature = "googcc-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+pub use bwe::GoogCcEstimator;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::PacerAction;
