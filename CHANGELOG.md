@@ -5,7 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.0] — 2026-05-14
+
+### Added
+
+- **`SubscriberPacer` is now `pub`** (was `pub(crate)`). Consumers can drive
+  the hysteretic layer selector directly without depending on partner-edge
+  internals. `SubscriberPacer::default()` is also implemented.
+- **`PacerConfig` struct** — exposes all seven BWE thresholds
+  (`suspend_video_bps`, `audio_only_bps`, `low_min_bps`, `medium_min_bps`,
+  `high_min_bps`, `suspend_streak`, `upgrade_streak`) as public fields with
+  a `Default` impl that yields the existing production values.
+  `SubscriberPacer::with_config(cfg: PacerConfig)` constructor added;
+  `SubscriberPacer::new()` remains a zero-arg convenience that delegates to
+  `with_config(PacerConfig::default())`.
+- All BWE constants (`AUDIO_ONLY_BPS`, `LOW_MIN_BPS`, etc.) promoted from
+  `pub(crate)` to `pub` so consumers can reference them as default values
+  when building custom `PacerConfig` instances.
+- **`googcc-bwe` feature** — opt-in GoogCC v2 per-subscriber bandwidth
+  estimator:
+  - `bwe::googcc::TrendlineDetector` — linear regression over a 20-packet
+    rolling window; threshold 12.5 ms/s (same values as partner-edge).
+  - `bwe::googcc::AimdController` — +8 % additive increase / ×0.85
+    multiplicative decrease (RFC 3448); loss thresholds 0.5 %/2.0 %.
+  - `bwe::googcc::GoogCcEstimator` — combines trendline + AIMD,
+    per-subscriber (vs per-room in partner-edge, which is architecturally
+    weaker). `with_bounds(initial, min, max)` for custom bitrate bounds.
+  - `bwe::subscriber::PerSubscriber` gains an optional `googcc` field;
+    `combined_bps()` includes the GoogCC estimate as an additional ceiling
+    when `Some`.
+  - Re-exported at crate root: `use oxpulse_sfu_kit::GoogCcEstimator`.
+- New examples: `pacer_basic` (requires `pacer`) and `with_googcc`
+  (requires `googcc-bwe`).
+
+### Changed
+
+- `bwe::subscriber::PerSubscriber::combined_bps()` now accepts the GoogCC
+  ceiling as a feature-gated extension. Behaviour is unchanged when
+  `googcc-bwe` is not enabled or when `googcc` is `None`.
 
 ## [0.10.0] — 2026-05-07
 

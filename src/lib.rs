@@ -83,8 +83,11 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "av1-dd")))]
 pub mod av1;
 pub mod bandwidth;
-#[cfg(any(feature = "pacer", feature = "kalman-bwe"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "pacer", feature = "kalman-bwe"))))]
+#[cfg(any(feature = "pacer", feature = "kalman-bwe", feature = "googcc-bwe"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "pacer", feature = "kalman-bwe", feature = "googcc-bwe")))
+)]
 pub mod bwe;
 pub mod cc;
 pub mod client;
@@ -116,9 +119,18 @@ pub use bandwidth::BandwidthEstimate;
 #[cfg(feature = "kalman-bwe")]
 #[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
 pub use bwe::feedback::{TwccFeedback, TwccSample};
+#[cfg(feature = "googcc-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+pub use bwe::GoogCcEstimator;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::PacerAction;
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub use bwe::PacerConfig;
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub use bwe::SubscriberPacer;
 pub use cc::{CongestionControl, DefaultGoogCC};
 pub use client::Client;
 pub use config::SfuConfig;
