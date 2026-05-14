@@ -119,6 +119,12 @@ pub use bwe::feedback::{TwccFeedback, TwccSample};
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::PacerAction;
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub use bwe::PacerConfig;
+#[cfg(feature = "pacer")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
+pub use bwe::SubscriberPacer;
 pub use cc::{CongestionControl, DefaultGoogCC};
 pub use client::Client;
 pub use config::SfuConfig;

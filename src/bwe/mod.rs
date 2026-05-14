@@ -16,11 +16,15 @@
 
 #[cfg(feature = "pacer")]
 mod hysteresis;
+#[cfg(feature = "pacer")]
+pub mod pacer_config;
+#[cfg(feature = "pacer")]
+pub use pacer_config::PacerConfig;
 
 #[cfg(feature = "pacer")]
 pub use hysteresis::PacerAction;
 #[cfg(feature = "pacer")]
-pub(crate) use hysteresis::SubscriberPacer;
+pub use hysteresis::SubscriberPacer;
 
 /// Below this egress BWE, the pacer enters its `suspended` sub-state and emits
 /// `PacerAction::SuspendVideo`. Audio at this BWE is below the Opus narrow-band
@@ -28,19 +32,19 @@ pub(crate) use hysteresis::SubscriberPacer;
 /// Phase 7 wires the per-client fanout filter that drops video frames for
 /// suspended subscribers.
 #[cfg(feature = "pacer")]
-pub(crate) const SUSPEND_VIDEO_BPS: u64 = 10_000;
+pub const SUSPEND_VIDEO_BPS: u64 = 10_000;
 /// Below this egress BWE, video is suspended (audio-only mode) --- bits/s.
 #[cfg(feature = "pacer")]
-pub(crate) const AUDIO_ONLY_BPS: u64 = 80_000;
+pub const AUDIO_ONLY_BPS: u64 = 80_000;
 /// Minimum BWE to sustain the LOW ("q") simulcast layer --- bits/s.
 #[cfg(feature = "pacer")]
-pub(crate) const LOW_MIN_BPS: u64 = 150_000;
+pub const LOW_MIN_BPS: u64 = 150_000;
 /// Minimum BWE to sustain the MEDIUM ("h") simulcast layer --- bits/s.
 #[cfg(feature = "pacer")]
-pub(crate) const MEDIUM_MIN_BPS: u64 = 350_000;
+pub const MEDIUM_MIN_BPS: u64 = 350_000;
 /// Minimum BWE to sustain the HIGH ("f") simulcast layer --- bits/s.
 #[cfg(feature = "pacer")]
-pub(crate) const HIGH_MIN_BPS: u64 = 700_000;
+pub const HIGH_MIN_BPS: u64 = 700_000;
 /// Consecutive ticks below `SUSPEND_VIDEO_BPS` required before the pacer
 /// enters its `suspended` sub-state. Asymmetric with `UPGRADE_STREAK`:
 /// entry mistakes cause a visible video gap, so a small (2-tick) debounce
@@ -69,7 +73,7 @@ pub(crate) const HIGH_MIN_BPS: u64 = 700_000;
 pub const SUSPEND_STREAK: u8 = 2;
 /// Ticks above next tier required before upgrading (prevents thrash).
 #[cfg(feature = "pacer")]
-pub(crate) const UPGRADE_STREAK: u8 = 3;
+pub const UPGRADE_STREAK: u8 = 3;
 
 #[cfg(feature = "kalman-bwe")]
 pub mod estimator;

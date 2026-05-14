@@ -1,7 +1,4 @@
-use super::{
-    AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_STREAK, SUSPEND_VIDEO_BPS,
-    UPGRADE_STREAK,
-};
+use super::PacerConfig;
 use crate::ids::SfuRid;
 
 /// Action returned by `SubscriberPacer::update`.
@@ -31,7 +28,7 @@ pub enum PacerAction {
 /// Implements LiveKit-style 3-consecutive-upgrade / instant-downgrade.
 /// Feed each BWE reading via [`Self::update`]; act on the returned [`PacerAction`].
 #[derive(Debug)]
-pub(crate) struct SubscriberPacer {
+pub struct SubscriberPacer {
     current_layer: SfuRid,
     audio_only: bool,
     /// `true` once BWE dropped below `SUSPEND_VIDEO_BPS`. Implies `audio_only=true`
@@ -41,24 +38,39 @@ pub(crate) struct SubscriberPacer {
     /// Consecutive ticks below `SUSPEND_VIDEO_BPS` while not yet suspended.
     /// Must reach `SUSPEND_STREAK` before transition to suspended state.
     suspend_streak: u8,
+    /// Runtime-configurable thresholds.
+    config: PacerConfig,
 }
 
 impl SubscriberPacer {
-    pub(crate) fn new() -> Self {
+    /// Create a new [] with default thresholds.
+    ///
+    /// Equivalent to .
+    pub fn new() -> Self {
+        Self::with_config(PacerConfig::default())
+    }
+
+    /// Create a new [] with custom thresholds.
+    ///
+    /// # Examples
+    ///
+    ///
+    pub fn with_config(config: PacerConfig) -> Self {
         Self {
             current_layer: SfuRid::LOW,
             audio_only: false,
             suspended: false,
             upgrade_streak: 0,
             suspend_streak: 0,
+            config,
         }
     }
 
     /// Feed a new egress BWE reading. Returns the action to take (if any).
-    pub(crate) fn update(&mut self, bps: u64) -> PacerAction {
+    pub fn update(&mut self, bps: u64) -> PacerAction {
         // Suspended: stay suspended until we cross AUDIO_ONLY_BPS upward.
         if self.suspended {
-            if bps >= AUDIO_ONLY_BPS {
+            if bps >= self.config.audio_only_bps {
                 self.suspended = false;
                 // RestoreAudio lands us in audio_only=true. RestoreVideo will
                 // be emitted on the NEXT tick if bps also clears LOW_MIN_BPS.
@@ -73,9 +85,9 @@ impl SubscriberPacer {
         // Debounced suspend-entry: require SUSPEND_STREAK consecutive ticks below
         // SUSPEND_VIDEO_BPS before entering suspended state. A single anomalous TWCC
         // packet must not kill all video for the subscriber.
-        if bps < SUSPEND_VIDEO_BPS {
+        if bps < self.config.suspend_video_bps {
             self.suspend_streak = self.suspend_streak.saturating_add(1);
-            if self.suspend_streak >= SUSPEND_STREAK {
+            if self.suspend_streak >= self.config.suspend_streak {
                 self.suspended = true;
                 self.audio_only = true;
                 self.upgrade_streak = 0;
@@ -97,7 +109,7 @@ impl SubscriberPacer {
 
         // Audio-only mode: enter below AUDIO_ONLY_BPS, exit only above LOW_MIN_BPS.
         if self.audio_only {
-            if bps >= LOW_MIN_BPS {
+            if bps >= self.config.low_min_bps {
                 self.audio_only = false;
                 self.current_layer = SfuRid::LOW;
                 self.upgrade_streak = 0;
@@ -105,13 +117,13 @@ impl SubscriberPacer {
             }
             return PacerAction::NoChange;
         }
-        if bps < AUDIO_ONLY_BPS {
+        if bps < self.config.audio_only_bps {
             self.audio_only = true;
             self.upgrade_streak = 0;
             return PacerAction::GoAudioOnly;
         }
 
-        let target = layer_for_bps(bps);
+        let target = self.layer_for_bps(bps);
 
         // Downgrade: immediate + reset streak.
         if rank(target) < rank(self.current_layer) {
@@ -123,7 +135,7 @@ impl SubscriberPacer {
         // Upgrade: require UPGRADE_STREAK consecutive ticks above next tier.
         if rank(target) > rank(self.current_layer) {
             self.upgrade_streak += 1;
-            if self.upgrade_streak >= UPGRADE_STREAK {
+            if self.upgrade_streak >= self.config.upgrade_streak {
                 self.current_layer = target;
                 self.upgrade_streak = 0;
                 return PacerAction::ChangeLayer(target);
@@ -134,6 +146,16 @@ impl SubscriberPacer {
         }
 
         PacerAction::NoChange
+    }
+
+    fn layer_for_bps(&self, bps: u64) -> SfuRid {
+        if bps >= self.config.high_min_bps {
+            SfuRid::HIGH
+        } else if bps >= self.config.medium_min_bps {
+            SfuRid::MEDIUM
+        } else {
+            SfuRid::LOW
+        }
     }
 
     #[cfg(test)]
@@ -150,6 +172,12 @@ impl SubscriberPacer {
     }
 }
 
+impl Default for SubscriberPacer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn rank(r: SfuRid) -> u8 {
     if r == SfuRid::LOW {
         0
@@ -162,20 +190,14 @@ fn rank(r: SfuRid) -> u8 {
     }
 }
 
-fn layer_for_bps(bps: u64) -> SfuRid {
-    if bps >= HIGH_MIN_BPS {
-        SfuRid::HIGH
-    } else if bps >= MEDIUM_MIN_BPS {
-        SfuRid::MEDIUM
-    } else {
-        SfuRid::LOW
-    }
-}
-
 #[cfg(test)]
 #[allow(unused_must_use)] // test calls check side-effects, not return value
 mod tests {
     use super::*;
+    use crate::bwe::{
+        AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_STREAK,
+        SUSPEND_VIDEO_BPS,
+    };
 
     fn pump(p: &mut SubscriberPacer, bps: u64, n: u8) -> PacerAction {
         let mut last = PacerAction::NoChange;
