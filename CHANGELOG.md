@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] — 2026-05-14
+
+### Changed
+
+- **MSRV bumped: 1.86 → 1.88.** `time@0.3.47` is transitive through
+  `str0m → dimpl → time`, and `time` requires rustc 1.88. The v0.11.2
+  CHANGELOG claimed `time` was not a transitive dep — that was wrong
+  (verified via `cargo tree -i time`). CI matrix on 1.86 broke on
+  publish of v0.11.2; this release restores green CI.
+- CI matrix MSRV row: `1.86` → `1.88`.
+- README MSRV badge: `1.86` → `1.88`.
+
+### Fixed
+
+- `cargo fmt --check` failures in v0.11.2 (auto-applied in
+  `examples/twcc_googcc_wiring.rs`, `src/bwe/hysteresis.rs`,
+  `src/lib.rs`).
+
 ## [0.11.2] — 2026-05-14
 
 ### Added
@@ -46,7 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Remains **1.86**. The `time` crate is not a transitive dependency of this crate;
 the 1.88 bump flagged in the code-quality review was a false alarm.
 
-## [0.11.1] -- 2026-05-14
+> **Correction (see v0.11.3):** this claim was wrong. `time@0.3.47` IS
+> transitive via `str0m → dimpl → time` and requires rustc 1.88. The
+> `cargo tree -i time` check used to derive this section returned empty
+> because it was run without the active feature set. v0.11.3 bumps MSRV
+> to 1.88 accordingly.
+
+## [0.11.1] — 2026-05-14
 
 ### Added
 

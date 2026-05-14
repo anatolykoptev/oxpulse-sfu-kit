@@ -51,7 +51,10 @@ fn main() {
         "After 30 stable packets:  bps = {} (initial was 500_000)",
         gcc.current_bps()
     );
-    assert!(gcc.current_bps() > 500_000, "stable link should grow bitrate");
+    assert!(
+        gcc.current_bps() > 500_000,
+        "stable link should grow bitrate"
+    );
 
     // -----------------------------------------------------------------------
     // Part 2: integrating GoogCC into PerSubscriber
