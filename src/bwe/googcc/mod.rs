@@ -84,6 +84,14 @@ impl GoogCcEstimator {
     ///
     /// Returns the updated target bitrate (bps).
     pub fn on_receive(&mut self, arrival_ms: f64, send_ms: f64, loss_fraction: f32) -> u64 {
+        debug_assert!(
+            arrival_ms.is_finite() && send_ms.is_finite(),
+            "arrival_ms and send_ms must be finite; NaN/inf silently locks state to Normal"
+        );
+        debug_assert!(
+            loss_fraction.is_finite() && (0.0..=1.0).contains(&loss_fraction),
+            "loss_fraction must be finite and in [0.0, 1.0], got {loss_fraction}"
+        );
         if let (Some(la), Some(ls)) = (self.last_arrival_ms, self.last_send_ms) {
             let arr_delta = arrival_ms - la;
             let snd_delta = send_ms - ls;
