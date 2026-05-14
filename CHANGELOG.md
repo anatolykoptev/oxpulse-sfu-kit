@@ -64,7 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Remains **1.86**. The `time` crate is not a transitive dependency of this crate;
 the 1.88 bump flagged in the code-quality review was a false alarm.
 
-## [0.11.1] -- 2026-05-14
+> **Correction (see v0.11.3):** this claim was wrong. `time@0.3.47` IS
+> transitive via `str0m → dimpl → time` and requires rustc 1.88. The
+> `cargo tree -i time` check used to derive this section returned empty
+> because it was run without the active feature set. v0.11.3 bumps MSRV
+> to 1.88 accordingly.
+
+## [0.11.1] — 2026-05-14
 
 ### Added
 
