@@ -119,6 +119,18 @@ pub use bandwidth::BandwidthEstimate;
 #[cfg(feature = "kalman-bwe")]
 #[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
 pub use bwe::feedback::{TwccFeedback, TwccSample};
+#[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+pub use bwe::kalman::DelayEstimator;
+#[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+pub use bwe::loss::LossEstimator;
+#[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+pub use bwe::subscriber::{ClientHint, PerSubscriber};
+#[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+pub use bwe::BandwidthEstimator;
 #[cfg(feature = "googcc-bwe")]
 #[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
 pub use bwe::GoogCcEstimator;
@@ -132,10 +144,10 @@ pub use bwe::SubscriberPacer;
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::{PacerConfig, PacerConfigError};
 pub use cc::{CongestionControl, DefaultGoogCC};
-pub use client::Client;
+pub use client::{Client, TrackIn};
 pub use config::SfuConfig;
 pub use dc::ChannelConfig;
-pub use ids::{SfuMid, SfuPt, SfuRid};
+pub use ids::{InvalidRid, SfuMid, SfuPt, SfuRid};
 pub use keyframe::{SfuKeyframeKind, SfuKeyframeRequest};
 pub use layer_selector::{BestFitSelector, LayerSelector};
 pub use media::{SfuMediaKind, SfuMediaPayload};
@@ -143,11 +155,12 @@ pub use metrics::SfuMetrics;
 pub use net::{IncomingDatagram, OutgoingDatagram, SfuProtocol};
 pub use origin::ClientOrigin;
 pub use propagate::{ClientId, Propagated};
+pub use raw::{rtc_config, RawRtc, RawRtcConfig};
 pub use registry::Registry;
 pub use rtc::{SfuRtc, SfuRtcBuilder};
 pub use rtcp_stats::PeerRtcpStats;
 pub use sframe::KeyEpoch;
-pub use udp_loop::{run_udp_loop, serve_socket};
+pub use udp_loop::{bind, run_udp_loop, serve, serve_socket};
 #[cfg(feature = "vfm")]
 #[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]
 pub use vfm::FrameMarkingInfo;
