@@ -53,6 +53,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 clap = { version = "4", features = ["derive"] }
 hdrhistogram = "7"
 libc = "0.2"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [[test]]
 name = "multi_client"
@@ -102,3 +103,23 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[test]]
 name = "str0m_interop"
 required-features = ["pacer"]
+
+[[bench]]
+name = "bwe_estimator"
+harness = false
+required-features = ["kalman-bwe"]
+
+[[bench]]
+name = "googcc"
+harness = false
+required-features = ["googcc-bwe"]
+
+[[bench]]
+name = "pacer"
+harness = false
+required-features = ["pacer"]
+
+[[bench]]
+name = "registry"
+harness = false
+required-features = ["test-utils"]
