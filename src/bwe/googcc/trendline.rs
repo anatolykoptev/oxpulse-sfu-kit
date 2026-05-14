@@ -9,6 +9,8 @@
 //! original): each subscriber runs its own detector so per-link congestion does
 //! not affect unrelated subscribers sharing the same room.
 
+use std::collections::VecDeque;
+
 /// Window size for trendline regression (number of packet-pair samples).
 const WINDOW: usize = 20;
 /// Slope threshold above which the detector declares overuse (ms/s).
@@ -48,7 +50,7 @@ pub enum BandwidthState {
 #[derive(Debug, Clone)]
 pub struct TrendlineDetector {
     /// Rolling window of (arrival_delta_ms, send_delta_ms) pairs.
-    deltas: Vec<(f64, f64)>,
+    deltas: VecDeque<(f64, f64)>,
     /// Current overuse state. Read via [].
     pub(crate) state: BandwidthState,
 }
@@ -57,7 +59,7 @@ impl TrendlineDetector {
     /// Create a new detector in [`BandwidthState::Normal`].
     pub fn new() -> Self {
         Self {
-            deltas: Vec::with_capacity(WINDOW + 1),
+            deltas: VecDeque::with_capacity(WINDOW + 1),
             state: BandwidthState::Normal,
         }
     }
@@ -69,10 +71,10 @@ impl TrendlineDetector {
     ///
     /// Updates [`Self::state`] after at least 3 samples have been collected.
     pub fn update(&mut self, arrival_delta_ms: f64, send_delta_ms: f64) {
-        self.deltas.push((arrival_delta_ms, send_delta_ms));
-        if self.deltas.len() > WINDOW {
-            self.deltas.remove(0);
+        if self.deltas.len() >= WINDOW {
+            self.deltas.pop_front();
         }
+        self.deltas.push_back((arrival_delta_ms, send_delta_ms));
         if self.deltas.len() < 3 {
             return;
         }
