@@ -48,7 +48,7 @@ impl core::fmt::Display for PacerConfigError {
 /// Streak fields must each be ≥ 1 (a value of 0 causes instant state transition).
 ///
 /// Use [`PacerConfig::validate`] to check a custom config before passing it to
-/// [`SubscriberPacer::with_config`].
+/// [`super::SubscriberPacer::with_config`].
 ///
 /// Construct with `Default::default()` or override individual fields:
 ///
