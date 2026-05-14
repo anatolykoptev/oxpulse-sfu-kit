@@ -52,8 +52,17 @@ impl AimdController {
 
     /// Apply AIMD based on the observed loss fraction `[0.0, 1.0]`.
     ///
+    /// `loss_fraction` must be finite and in `[0.0, 1.0]`.
+    /// Values outside that range are clamped rather than rejected so that a
+    /// misbehaving RTCP parser does not permanently lock the bitrate.
+    ///
     /// Returns the new target bitrate.
     pub fn update_loss(&mut self, loss_fraction: f32) -> u64 {
+        debug_assert!(
+            loss_fraction.is_finite(),
+            "loss_fraction must be finite, got {loss_fraction}"
+        );
+        let loss_fraction = loss_fraction.clamp(0.0, 1.0);
         if loss_fraction < LOSS_LOW_THRESHOLD {
             let increase = (self.bitrate_bps as f64 * AI_FRACTION) as u64;
             self.bitrate_bps = (self.bitrate_bps + increase.max(8_000)).min(self.max_bps);

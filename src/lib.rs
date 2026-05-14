@@ -127,7 +127,7 @@ pub use bwe::GoogCcEstimator;
 pub use bwe::PacerAction;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
-pub use bwe::PacerConfig;
+pub use bwe::{PacerConfig, PacerConfigError};
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
 pub use bwe::SubscriberPacer;

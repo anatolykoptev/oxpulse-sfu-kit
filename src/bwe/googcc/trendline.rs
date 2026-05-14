@@ -9,12 +9,15 @@
 //! original): each subscriber runs its own detector so per-link congestion does
 //! not affect unrelated subscribers sharing the same room.
 
+use std::collections::VecDeque;
+
 /// Window size for trendline regression (number of packet-pair samples).
 const WINDOW: usize = 20;
 /// Slope threshold above which the detector declares overuse (ms/s).
 const OVERUSE_THRESHOLD: f64 = 12.5;
 
 /// Signal emitted by [`TrendlineDetector`].
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BandwidthState {
     /// Delay is decreasing --- link has spare capacity.
@@ -41,22 +44,22 @@ pub enum BandwidthState {
 /// for _ in 0..25 {
 ///     detector.update(20.0, 20.0); // stable timing
 /// }
-/// assert_eq!(detector.state, BandwidthState::Normal);
+/// assert_eq!(detector.state(), BandwidthState::Normal);
 /// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct TrendlineDetector {
     /// Rolling window of (arrival_delta_ms, send_delta_ms) pairs.
-    deltas: Vec<(f64, f64)>,
-    /// Current overuse state.
-    pub state: BandwidthState,
+    deltas: VecDeque<(f64, f64)>,
+    /// Current overuse state. Read via [].
+    pub(crate) state: BandwidthState,
 }
 
 impl TrendlineDetector {
     /// Create a new detector in [`BandwidthState::Normal`].
     pub fn new() -> Self {
         Self {
-            deltas: Vec::with_capacity(WINDOW + 1),
+            deltas: VecDeque::with_capacity(WINDOW + 1),
             state: BandwidthState::Normal,
         }
     }
@@ -68,10 +71,10 @@ impl TrendlineDetector {
     ///
     /// Updates [`Self::state`] after at least 3 samples have been collected.
     pub fn update(&mut self, arrival_delta_ms: f64, send_delta_ms: f64) {
-        self.deltas.push((arrival_delta_ms, send_delta_ms));
-        if self.deltas.len() > WINDOW {
-            self.deltas.remove(0);
+        if self.deltas.len() >= WINDOW {
+            self.deltas.pop_front();
         }
+        self.deltas.push_back((arrival_delta_ms, send_delta_ms));
         if self.deltas.len() < 3 {
             return;
         }
@@ -89,6 +92,11 @@ impl TrendlineDetector {
     /// Returns `true` when the detector has declared overuse.
     pub fn overuse(&self) -> bool {
         self.state == BandwidthState::Overuse
+    }
+
+    /// Current congestion state.
+    pub fn state(&self) -> BandwidthState {
+        self.state
     }
 
     fn trendline_slope(&self) -> f64 {
