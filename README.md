@@ -74,11 +74,13 @@ registry.insert(relay_client);
 | Flag | What it does |
 |------|--------------|
 | `kalman-bwe` | GoogCC-inspired Kalman delay + loss-based BWE. `BandwidthEstimator` with TWCC ingestion. `Registry::update_pacer_layers` for automatic layer selection. Enable with `pacer` for full adaptive forwarding. |
-| `pacer` | BWE-adaptive layer switching via `SubscriberPacer` (LiveKit-style 3-up/instant-down hysteresis). Adds `Propagated::AudioOnlyMode` at 80 kbps threshold. |
+|  | BWE-adaptive layer switching via  (LiveKit-style 3-up/instant-down hysteresis). Adds  at 80 kbps threshold.  allows runtime tuning of all thresholds. |
+|  | GoogCC v2 per-subscriber estimator:  (linear regression) +  (loss-based AIMD).  integrates with  as an additional bitrate ceiling. |
 | `av1-dd` | AV1 Dependency Descriptor parser (`av1::dependency_descriptor`). `SfuMediaPayload::av1_dd()` accessor. `Client::set_max_temporal_layer(u8)` per-subscriber drop gate. |
 | `vfm` | RFC 9626 Video Frame Marking parser for H.264/VP9/HEVC. `SfuMediaPayload::vfm_frame_marking()`. `Client::set_max_vfm_temporal_layer(u8)`. |
 | `active-speaker` | Dominant speaker tracking via [`rust-dominant-speaker`](https://crates.io/crates/rust-dominant-speaker). `Propagated::ActiveSpeakerChanged { peer_id, confidence }`. `Registry::tick_active_speaker` / `record_audio_level` / `peer_audio_scores`. |
 | `metrics-prometheus` | Prometheus counters on `SfuMetrics`, including per-peer BWE, loss, RTT, and speaker activity gauges. |
+| `googcc-bwe` | GoogCC v2 per-subscriber estimator: `TrendlineDetector` (linear regression, 20-packet window) + `AimdController` (loss-based AIMD +8%/x0.85). `GoogCcEstimator` integrates as an additional bitrate ceiling in `PerSubscriber::combined_bps`. |
 | `test-utils` | Test seam helpers (`test_seed` module, `Registry::*_for_tests` methods). |
 
 ## Audio quality guidance

@@ -1,6 +1,6 @@
 [package]
 name = "oxpulse-sfu-kit"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
 rust-version = "1.86"
 license = "MIT OR Apache-2.0"
@@ -71,6 +71,16 @@ required-features = ["test-utils"]
 name = "basic-sfu"
 path = "examples/basic-sfu.rs"
 required-features = ["active-speaker", "metrics-prometheus"]
+
+[[example]]
+name = "pacer_basic"
+path = "examples/pacer_basic.rs"
+required-features = ["pacer"]
+
+[[example]]
+name = "with_googcc"
+path = "examples/with_googcc.rs"
+required-features = ["googcc-bwe"]
 
 [package.metadata.docs.rs]
 all-features = true
