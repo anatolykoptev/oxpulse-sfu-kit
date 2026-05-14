@@ -15,6 +15,7 @@ impl SfuMetrics {
     }
 
     pub(crate) fn inc_forwarded_packets(&self, _kind: &str) {}
+    pub(crate) fn observe_forward_latency(&self, _kind: &str, _elapsed_secs: f64) {}
     pub(crate) fn inc_layer_selection(&self, _layer: &str) {}
     pub(crate) fn inc_suspend_video(&self, _direction: &str) {}
     pub(crate) fn inc_video_frames_dropped(&self, _peer_id: u64) {}
