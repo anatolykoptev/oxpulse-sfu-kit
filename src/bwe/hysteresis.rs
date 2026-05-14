@@ -56,8 +56,11 @@ impl SubscriberPacer {
     ///
     ///
     pub fn with_config(config: PacerConfig) -> Self {
-        debug_assert!(config.upgrade_streak > 0, "upgrade_streak=0 causes instant upgrade on every tick");
-        debug_assert!(config.suspend_streak > 0, "suspend_streak=0 causes instant suspend on first tick below threshold");
+        debug_assert!(
+            config.validate().is_ok(),
+            "invalid PacerConfig: {:?}",
+            config.validate()
+        );
         Self {
             current_layer: SfuRid::LOW,
             audio_only: false,
@@ -566,7 +569,7 @@ mod tests {
     }
     #[test]
     #[cfg(debug_assertions)]
-    #[should_panic(expected = "upgrade_streak=0")]
+    #[should_panic(expected = "invalid PacerConfig")]
     fn upgrade_streak_zero_panics_in_debug() {
         use crate::bwe::PacerConfig;
         // upgrade_streak=0 means streak(1) >= 0 is always true -> single-tick upgrade = thrash.
@@ -580,7 +583,7 @@ mod tests {
 
     #[test]
     #[cfg(debug_assertions)]
-    #[should_panic(expected = "suspend_streak=0")]
+    #[should_panic(expected = "invalid PacerConfig")]
     fn suspend_streak_zero_panics_in_debug() {
         use crate::bwe::PacerConfig;
         // suspend_streak=0 means streak(1) >= 0 is always true -> instant suspend on first tick.

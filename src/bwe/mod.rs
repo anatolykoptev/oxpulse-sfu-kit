@@ -19,7 +19,7 @@ mod hysteresis;
 #[cfg(feature = "pacer")]
 pub mod pacer_config;
 #[cfg(feature = "pacer")]
-pub use pacer_config::PacerConfig;
+pub use pacer_config::{PacerConfig, PacerConfigError};
 
 #[cfg(feature = "pacer")]
 pub use hysteresis::PacerAction;
