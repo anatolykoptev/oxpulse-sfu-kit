@@ -43,18 +43,26 @@ pub struct SubscriberPacer {
 }
 
 impl SubscriberPacer {
-    /// Create a new [] with default thresholds.
+    /// Create a new [`SubscriberPacer`] with default thresholds.
     ///
-    /// Equivalent to .
+    /// Equivalent to [`Self::with_config`] with [`PacerConfig::default`].
     pub fn new() -> Self {
         Self::with_config(PacerConfig::default())
     }
 
-    /// Create a new [] with custom thresholds.
+    /// Create a new [`SubscriberPacer`] with custom thresholds.
     ///
     /// # Examples
     ///
+    /// ```rust
+    /// # #[cfg(feature = "pacer")]
+    /// # {
+    /// use oxpulse_sfu_kit::bwe::{PacerConfig, SubscriberPacer};
     ///
+    /// let config = PacerConfig { upgrade_streak: 5, ..PacerConfig::default() };
+    /// let pacer = SubscriberPacer::with_config(config);
+    /// # }
+    /// ```
     pub fn with_config(config: PacerConfig) -> Self {
         debug_assert!(
             config.validate().is_ok(),
