@@ -127,10 +127,10 @@ pub use bwe::GoogCcEstimator;
 pub use bwe::PacerAction;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
-pub use bwe::{PacerConfig, PacerConfigError};
+pub use bwe::SubscriberPacer;
 #[cfg(feature = "pacer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pacer")))]
-pub use bwe::SubscriberPacer;
+pub use bwe::{PacerConfig, PacerConfigError};
 pub use cc::{CongestionControl, DefaultGoogCC};
 pub use client::Client;
 pub use config::SfuConfig;

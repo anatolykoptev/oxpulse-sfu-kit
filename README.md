@@ -4,7 +4,7 @@
 [![Crates.io](https://img.shields.io/crates/v/oxpulse-sfu-kit.svg)](https://crates.io/crates/oxpulse-sfu-kit)
 [![docs.rs](https://docs.rs/oxpulse-sfu-kit/badge.svg)](https://docs.rs/oxpulse-sfu-kit)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.86-blue.svg)](#status)
+[![MSRV](https://img.shields.io/badge/MSRV-1.88-blue.svg)](#status)
 
 Reusable multi-client SFU primitives built on top of [str0m](https://github.com/algesten/str0m).
 

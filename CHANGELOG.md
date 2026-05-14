@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] — 2026-05-14
+
+### Changed
+
+- **MSRV bumped: 1.86 → 1.88.** `time@0.3.47` is transitive through
+  `str0m → dimpl → time`, and `time` requires rustc 1.88. The v0.11.2
+  CHANGELOG claimed `time` was not a transitive dep — that was wrong
+  (verified via `cargo tree -i time`). CI matrix on 1.86 broke on
+  publish of v0.11.2; this release restores green CI.
+- CI matrix MSRV row: `1.86` → `1.88`.
+- README MSRV badge: `1.86` → `1.88`.
+
+### Fixed
+
+- `cargo fmt --check` failures in v0.11.2 (auto-applied in
+  `examples/twcc_googcc_wiring.rs`, `src/bwe/hysteresis.rs`,
+  `src/lib.rs`).
+
 ## [0.11.2] — 2026-05-14
 
 ### Added

@@ -601,5 +601,4 @@ mod tests {
         };
         let _ = SubscriberPacer::with_config(cfg);
     }
-
 }
