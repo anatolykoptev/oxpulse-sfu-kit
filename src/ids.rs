@@ -2,6 +2,23 @@
 //!
 //! These exist to prevent str0m semver churn from propagating to downstream
 //! consumers. Internal modules keep using str0m types directly.
+//!
+//! # Interoperability with str0m
+//!
+//! Consumers that use str0m types directly (e.g. when wiring
+//! [`PacerAction::ChangeLayer`][crate::bwe::PacerAction::ChangeLayer] into a
+//! str0m-backed pipeline) can convert between kit types and str0m types via
+//! the [`From`] impls on each wrapper:
+//!
+//! ```
+//! use oxpulse_sfu_kit::{SfuRid, SfuMid, SfuPt};
+//!
+//! // SfuRid -> str0m
+//! let rid: str0m::media::Rid = SfuRid::LOW.into();
+//! // str0m -> SfuRid
+//! let back: SfuRid = rid.into();
+//! assert_eq!(back, SfuRid::LOW);
+//! ```
 
 use std::fmt;
 use std::str::FromStr;
@@ -67,33 +84,64 @@ impl fmt::Display for InvalidRid {
 
 impl std::error::Error for InvalidRid {}
 
-// Conversion helpers are used by Tasks 6-7 (migration of internal modules).
-#[allow(dead_code)]
 impl SfuRid {
-    pub(crate) fn from_str0m(r: str0m::media::Rid) -> Self {
-        Self(r)
-    }
-    pub(crate) fn to_str0m(self) -> str0m::media::Rid {
-        self.0
-    }
-
     /// LiveKit low-resolution simulcast layer (`q`).
     pub const LOW: Self = Self(str0m::media::Rid::from_array(*b"q       "));
     /// LiveKit mid-resolution simulcast layer (`h`).
     pub const MEDIUM: Self = Self(str0m::media::Rid::from_array(*b"h       "));
     /// LiveKit full-resolution simulcast layer (`f`).
     pub const HIGH: Self = Self(str0m::media::Rid::from_array(*b"f       "));
+
+    // Internal helpers kept for existing crate-internal callers.
+    pub(crate) fn from_str0m(r: str0m::media::Rid) -> Self {
+        Self(r)
+    }
+
+    pub(crate) fn to_str0m(self) -> str0m::media::Rid {
+        self.0
+    }
 }
 
-#[allow(dead_code)]
+/// Convert a [`SfuRid`] to the underlying `str0m` [`Rid`][str0m::media::Rid].
+///
+/// This is the primary interop path for consumers that pattern-match on
+/// [`PacerAction::ChangeLayer`][crate::bwe::PacerAction::ChangeLayer] and
+/// need to pass the resulting layer identifier back into a `str0m`-backed
+/// pipeline (e.g. as a key into `MediaData.rid` or `Rtc` track maps).
+///
+/// The conversion is lossless and zero-cost.
+impl From<SfuRid> for str0m::media::Rid {
+    fn from(rid: SfuRid) -> Self {
+        rid.0
+    }
+}
+
+/// Convert a `str0m` [`Rid`][str0m::media::Rid] to a [`SfuRid`].
+///
+/// Accepts any `Rid` str0m produces, including non-standard values. For
+/// consumer code that receives a `Rid` from str0m and needs to compare it
+/// against [`SfuRid::LOW`] / [`SfuRid::MEDIUM`] / [`SfuRid::HIGH`].
+///
+/// No validation is performed — the `Rid` is wrapped as-is. If you are
+/// constructing a `SfuRid` from user-supplied strings, use
+/// [`SfuRid::from_str`] instead so validation fires.
+impl From<str0m::media::Rid> for SfuRid {
+    fn from(rid: str0m::media::Rid) -> Self {
+        Self(rid)
+    }
+}
+
 impl SfuMid {
+    // Internal helpers.
     pub(crate) fn from_str0m(m: str0m::media::Mid) -> Self {
         Self(m)
     }
+
     pub(crate) fn to_str0m(self) -> str0m::media::Mid {
         self.0
     }
 }
+
 impl std::str::FromStr for SfuMid {
     type Err = std::convert::Infallible;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -101,13 +149,42 @@ impl std::str::FromStr for SfuMid {
     }
 }
 
-#[allow(dead_code)]
+/// Convert a [`SfuMid`] to the underlying `str0m` [`Mid`][str0m::media::Mid].
+impl From<SfuMid> for str0m::media::Mid {
+    fn from(mid: SfuMid) -> Self {
+        mid.0
+    }
+}
+
+/// Convert a `str0m` [`Mid`][str0m::media::Mid] to a [`SfuMid`].
+impl From<str0m::media::Mid> for SfuMid {
+    fn from(mid: str0m::media::Mid) -> Self {
+        Self(mid)
+    }
+}
+
 impl SfuPt {
+    // Internal helpers.
     pub(crate) fn from_str0m(p: str0m::media::Pt) -> Self {
         Self(p)
     }
+
     pub(crate) fn to_str0m(self) -> str0m::media::Pt {
         self.0
+    }
+}
+
+/// Convert a [`SfuPt`] to the underlying `str0m` [`Pt`][str0m::media::Pt].
+impl From<SfuPt> for str0m::media::Pt {
+    fn from(pt: SfuPt) -> Self {
+        pt.0
+    }
+}
+
+/// Convert a `str0m` [`Pt`][str0m::media::Pt] to a [`SfuPt`].
+impl From<str0m::media::Pt> for SfuPt {
+    fn from(pt: str0m::media::Pt) -> Self {
+        Self(pt)
     }
 }
 
@@ -122,6 +199,30 @@ mod tests {
         let raw = rid.to_str0m();
         let back = SfuRid::from_str0m(raw);
         assert_eq!(rid, back);
+    }
+
+    #[test]
+    fn rid_from_trait_roundtrip() {
+        let rid = SfuRid::MEDIUM;
+        let raw: str0m::media::Rid = rid.into();
+        let back: SfuRid = raw.into();
+        assert_eq!(back, SfuRid::MEDIUM);
+    }
+
+    #[test]
+    fn mid_from_trait_roundtrip() {
+        let raw = str0m::media::Mid::from("0");
+        let mid: SfuMid = raw.into();
+        let back: str0m::media::Mid = mid.into();
+        assert_eq!(back, raw);
+    }
+
+    #[test]
+    fn pt_from_trait_roundtrip() {
+        let raw = str0m::media::Pt::from(96u8);
+        let pt: SfuPt = raw.into();
+        let back: str0m::media::Pt = pt.into();
+        assert_eq!(back, raw);
     }
 
     #[test]
