@@ -86,6 +86,10 @@ impl PerSubscriber {
             None => base,
         };
 
+        // Intentional shadow: when the googcc-bwe feature is active, apply GoogCC
+        // as an additional ceiling. Shadowing keeps the variable name consistent so
+        // the `after_hint` block below compiles identically with or without the feature,
+        // without an #[allow(unused_variables)] or a separate name.
         #[cfg(feature = "googcc-bwe")]
         let after_native = match &self.googcc {
             Some(gcc) => after_native.min(gcc.current_bps() as f64),
