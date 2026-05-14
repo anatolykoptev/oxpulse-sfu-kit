@@ -189,3 +189,52 @@ fn peer_audio_scores_returns_empty_for_empty_room() {
     let registry = oxpulse_sfu_kit::Registry::new_for_tests();
     assert!(registry.peer_audio_scores().is_empty());
 }
+
+/// Verify the `forward_latency_seconds` histogram records observations and
+/// appears in the Prometheus text output with the correct prefix.
+#[test]
+fn forward_latency_histogram_records_observations() {
+    let metrics = SfuMetrics::new_default();
+
+    // Observe one video sample.
+    metrics
+        .forward_latency_seconds
+        .with_label_values(&["video"])
+        .observe(0.005);
+
+    // Observe one audio sample.
+    metrics
+        .forward_latency_seconds
+        .with_label_values(&["audio"])
+        .observe(0.0002);
+
+    let body = metrics.encode_text().expect("encode");
+
+    // The histogram count line for video should report 1 sample.
+    assert!(
+        body.contains(r#"sfu_forward_latency_seconds_count{media_kind="video"} 1"#),
+        "expected video count=1 in:\n{body}",
+    );
+
+    // The histogram count line for audio should report 1 sample.
+    assert!(
+        body.contains(r#"sfu_forward_latency_seconds_count{media_kind="audio"} 1"#),
+        "expected audio count=1 in:\n{body}",
+    );
+
+    // The sum for video should be close to 0.005 s.
+    let video_sum_line = body
+        .lines()
+        .find(|l| l.starts_with(r#"sfu_forward_latency_seconds_sum{media_kind="video"}"#))
+        .expect("video sum line");
+    let video_sum: f64 = video_sum_line
+        .split_whitespace()
+        .nth(1)
+        .expect("sum value")
+        .parse()
+        .expect("parse sum");
+    assert!(
+        (video_sum - 0.005).abs() < 1e-9,
+        "video sum should be ~0.005, got {video_sum}",
+    );
+}
