@@ -1,10 +1,10 @@
-//! Configurable thresholds for [`SubscriberPacer`].
+//! Configurable thresholds for [`SubscriberPacer`][super::SubscriberPacer].
 use super::{
     AUDIO_ONLY_BPS, HIGH_MIN_BPS, LOW_MIN_BPS, MEDIUM_MIN_BPS, SUSPEND_STREAK, SUSPEND_VIDEO_BPS,
     UPGRADE_STREAK,
 };
 
-/// Configurable thresholds for [`SubscriberPacer`].
+/// Configurable thresholds for [`SubscriberPacer`][super::SubscriberPacer].
 ///
 /// All bitrate values are in bits per second. Streak counters are in ticks
 /// (one tick = one call to `SubscriberPacer::update`).

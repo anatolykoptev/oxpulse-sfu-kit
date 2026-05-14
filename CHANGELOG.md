@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] -- 2026-05-14
+
+### Added
+
+- `From<SfuRid> for str0m::media::Rid` and `From<str0m::media::Rid> for SfuRid` --
+  consumers that pattern-match on `PacerAction::ChangeLayer` and need to wire the resulting
+  layer into a str0m pipeline no longer need a workaround. Both conversions are zero-cost
+  lossless newtypes.
+- `From<SfuMid> for str0m::media::Mid` / `From<str0m::media::Mid> for SfuMid` --
+  symmetric conversion for stream identifiers.
+- `From<SfuPt> for str0m::media::Pt` / `From<str0m::media::Pt> for SfuPt` --
+  symmetric conversion for payload types.
+
+### Changed
+
+- `pub(crate)` methods `SfuRid::to_str0m()` / `SfuRid::from_str0m()` (and `SfuMid`, `SfuPt`
+  equivalents) retained for internal use; the `From` traits are the stable public API.
+
 ## [0.11.0] — 2026-05-14
 
 ### Added

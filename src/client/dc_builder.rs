@@ -77,7 +77,7 @@ impl Client {
 impl Client {
     /// Build a `Client` for integration tests without real ICE/DTLS setup.
     ///
-    /// Identical to [`test_seed::new_client`] but available as an associated
+    /// Identical to [`crate::client::test_seed::new_client`] but available as an associated
     /// function on `Client` so tests can call `Client::new_for_test()` without
     /// importing the internal module.
     #[must_use]
