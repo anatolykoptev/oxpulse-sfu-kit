@@ -56,6 +56,8 @@ impl SubscriberPacer {
     ///
     ///
     pub fn with_config(config: PacerConfig) -> Self {
+        debug_assert!(config.upgrade_streak > 0, "upgrade_streak=0 causes instant upgrade on every tick");
+        debug_assert!(config.suspend_streak > 0, "suspend_streak=0 causes instant suspend on first tick below threshold");
         Self {
             current_layer: SfuRid::LOW,
             audio_only: false,
@@ -134,7 +136,10 @@ impl SubscriberPacer {
 
         // Upgrade: require UPGRADE_STREAK consecutive ticks above next tier.
         if rank(target) > rank(self.current_layer) {
-            self.upgrade_streak += 1;
+            // Defensive: use saturating_add to guard against future refactors that
+            // might allow streak to grow past cfg.upgrade_streak (currently impossible
+            // because upgrade fires at == cfg.upgrade_streak and resets to 0).
+            self.upgrade_streak = self.upgrade_streak.saturating_add(1);
             if self.upgrade_streak >= self.config.upgrade_streak {
                 self.current_layer = target;
                 self.upgrade_streak = 0;
@@ -559,4 +564,31 @@ mod tests {
         // SUSPEND_STREAKth tick triggers
         assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
     }
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "upgrade_streak=0")]
+    fn upgrade_streak_zero_panics_in_debug() {
+        use crate::bwe::PacerConfig;
+        // upgrade_streak=0 means streak(1) >= 0 is always true -> single-tick upgrade = thrash.
+        // The debug_assert in with_config must catch this.
+        let cfg = PacerConfig {
+            upgrade_streak: 0,
+            ..PacerConfig::default()
+        };
+        let _ = SubscriberPacer::with_config(cfg);
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "suspend_streak=0")]
+    fn suspend_streak_zero_panics_in_debug() {
+        use crate::bwe::PacerConfig;
+        // suspend_streak=0 means streak(1) >= 0 is always true -> instant suspend on first tick.
+        let cfg = PacerConfig {
+            suspend_streak: 0,
+            ..PacerConfig::default()
+        };
+        let _ = SubscriberPacer::with_config(cfg);
+    }
+
 }
