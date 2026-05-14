@@ -48,10 +48,20 @@ pub struct PerSubscriber {
     pub native_estimate_bps: Option<f64>,
     /// Browser-reported budget hint (additional ceiling, expires after 5s).
     pub client_hint: Option<ClientHint>,
-    /// GoogCC v2 per-subscriber estimator (trendline + AIMD).
+    /// Per-subscriber GoogCC v2 estimator. **None by default** — must be
+    /// initialised by the consumer at subscriber creation:
     ///
-    /// When `Some`, its estimate is included as an additional ceiling in
-    /// [`Self::combined_bps`]. Enabled via the `googcc-bwe` feature.
+    /// ```ignore
+    /// use oxpulse_sfu_kit::bwe::googcc::GoogCcEstimator;
+    /// subscriber.googcc = Some(GoogCcEstimator::new());
+    /// ```
+    ///
+    /// When `Some`, [`Self::combined_bps`] applies `googcc.current_bps()` as
+    /// an additional ceiling alongside the Kalman estimate. Feed via
+    /// `googcc.on_receive(arrival_ms, send_ms, loss)` from the TWCC feedback
+    /// handler (typically in `BandwidthEstimator::on_twcc_feedback`).
+    ///
+    /// See [`crate::bwe::googcc`] module docs for the full integration recipe.
     #[cfg(feature = "googcc-bwe")]
     pub googcc: Option<GoogCcEstimator>,
 }

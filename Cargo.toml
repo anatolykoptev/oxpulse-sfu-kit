@@ -82,6 +82,11 @@ name = "with_googcc"
 path = "examples/with_googcc.rs"
 required-features = ["googcc-bwe"]
 
+[[example]]
+name = "twcc_googcc_wiring"
+path = "examples/twcc_googcc_wiring.rs"
+required-features = ["googcc-bwe", "kalman-bwe", "test-utils"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
