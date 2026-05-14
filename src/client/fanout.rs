@@ -142,6 +142,12 @@ impl Client {
         let Some(pt) = writer.match_params(params) else {
             return;
         };
+        // Observe end-to-end forwarding latency: time from publisher receipt to
+        // subscriber str0m handoff. Uses the packet's own network_time so the
+        // measurement is independent of when handle_media_data_out was called.
+        // observe() is a single atomic bucket increment — no allocation.
+        self.metrics
+            .observe_forward_latency(kind_label, network_time.elapsed().as_secs_f64());
         if let Err(e) = writer.write(pt, network_time, rtp_time, payload) {
             tracing::warn!(client = *self.id, error = ?e, "writer.write failed");
             self.rtc.disconnect();

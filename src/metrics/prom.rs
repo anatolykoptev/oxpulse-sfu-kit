@@ -5,7 +5,9 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use prometheus::{GaugeVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
+use prometheus::{
+    GaugeVec, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
+};
 
 /// All Prometheus handles for the SFU.
 ///
@@ -53,6 +55,14 @@ pub struct SfuMetrics {
     /// churn. Mirrors the F2b-2 reap pattern from partner-edge. Audio frames
     /// are not counted (they are forwarded in suspended state).
     video_frames_dropped_total: prometheus::IntCounterVec,
+    /// End-to-end RTP forwarding latency: time from packet receive at the
+    /// publisher side (`SfuMediaPayload::network_time`) to handoff to the
+    /// subscriber's str0m writer. Label `media_kind` ∈ {"audio", "video", "other"}.
+    ///
+    /// Buckets (seconds): 100µs, 500µs, 1ms, 5ms, 10ms, 50ms, 100ms.
+    /// Packets taking longer than 100ms land in the +Inf bucket and are a
+    /// signal of degraded call quality worth alerting on.
+    pub forward_latency_seconds: HistogramVec,
 }
 
 impl SfuMetrics {
@@ -185,6 +195,18 @@ impl SfuMetrics {
         )
         .context("video_frames_dropped_total")?);
 
+        let forward_latency_seconds = reg!(HistogramVec::new(
+            HistogramOpts::new(
+                "forward_latency_seconds",
+                "End-to-end RTP forwarding latency: from packet receive at the publisher \
+                 to handoff to the subscriber str0m writer. \
+                 Label media_kind = audio | video | other.",
+            )
+            .buckets(vec![0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1]),
+            &["media_kind"],
+        )
+        .context("forward_latency_seconds")?);
+
         Ok(Self {
             registry: Arc::new(registry),
             active_participants,
@@ -202,6 +224,7 @@ impl SfuMetrics {
             speaker_long,
             pacer_suspend_video_total,
             video_frames_dropped_total,
+            forward_latency_seconds,
         })
     }
 
@@ -224,6 +247,17 @@ impl SfuMetrics {
         self.forwarded_packets_total
             .with_label_values(&[kind])
             .inc();
+    }
+
+    /// Observe end-to-end forwarding latency for a single RTP packet.
+    ///
+    /// `kind` must be one of `"audio"`, `"video"`, or `"other"`.
+    /// `elapsed_secs` is the number of seconds from packet receipt to subscriber handoff.
+    /// This is alloc-free: `Histogram::observe` does a single atomic bucket increment.
+    pub(crate) fn observe_forward_latency(&self, kind: &str, elapsed_secs: f64) {
+        self.forward_latency_seconds
+            .with_label_values(&[kind])
+            .observe(elapsed_secs);
     }
 
     pub(crate) fn inc_layer_selection(&self, layer: &str) {
