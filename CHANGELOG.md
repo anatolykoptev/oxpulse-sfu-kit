@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] — 2026-05-14
+
+### Added
+
+- `PacerConfigError` enum (`UpgradeStreakZero`, `SuspendStreakZero`,
+  `BitrateOrderingViolation`) with `Display`. Re-exported at crate root
+  (feature `pacer`).
+- `PacerConfig::validate(&self) -> Result<(), PacerConfigError>` — validates
+  all ordering and streak invariants. Call before passing a custom config to
+  `SubscriberPacer::with_config`.
+- `TrendlineDetector::state() -> BandwidthState` getter. The `pub state` field
+  is now `pub(crate)`; use the getter in consumer code.
+- New example `twcc_googcc_wiring` (features: `googcc-bwe,kalman-bwe,test-utils`)
+  showing the TWCC relative-delta → absolute-ms timestamp conversion recipe and
+  `PerSubscriber` + GoogCC wiring.
+
+### Changed
+
+- `BandwidthState` is now `#[non_exhaustive]`. Consumers with exhaustive `match`
+  on this enum must add a `_ =>` arm. This is intentionally a minor breaking
+  change while the crate is new — future variants (`ProbationaryOveruse`,
+  `Recovering`) will not require a version bump.
+- `SubscriberPacer::with_config` now `debug_assert!`s that the config passes
+  `validate()`. The assertion fires only in debug builds; release builds are
+  unaffected.
+- `upgrade_streak += 1` replaced with `saturating_add(1)` (defensive; overflow
+  is unreachable in normal flow but guarded against future refactors).
+- `TrendlineDetector::deltas` changed from `Vec` to `VecDeque` — `pop_front` is
+  O(1) vs O(n) `Vec::remove(0)`.
+- `AimdController::update_loss` now clamps `loss_fraction` to `[0.0, 1.0]` and
+  `debug_assert!`s finiteness. `GoogCcEstimator::on_receive` `debug_assert!`s
+  finite `arrival_ms`/`send_ms`.
+- Doc comments improved: `SubscriberPacer::new` / `with_config` doc-link targets
+  fixed; `PacerConfig` field docs document the ordering invariant per field;
+  `PerSubscriber::googcc` expanded with integration recipe.
+
+### MSRV
+
+Remains **1.86**. The `time` crate is not a transitive dependency of this crate;
+the 1.88 bump flagged in the code-quality review was a false alarm.
+
 ## [0.11.1] -- 2026-05-14
 
 ### Added
