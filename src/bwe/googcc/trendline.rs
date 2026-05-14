@@ -15,6 +15,7 @@ const WINDOW: usize = 20;
 const OVERUSE_THRESHOLD: f64 = 12.5;
 
 /// Signal emitted by [`TrendlineDetector`].
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BandwidthState {
     /// Delay is decreasing --- link has spare capacity.
@@ -41,15 +42,15 @@ pub enum BandwidthState {
 /// for _ in 0..25 {
 ///     detector.update(20.0, 20.0); // stable timing
 /// }
-/// assert_eq!(detector.state, BandwidthState::Normal);
+/// assert_eq!(detector.state(), BandwidthState::Normal);
 /// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct TrendlineDetector {
     /// Rolling window of (arrival_delta_ms, send_delta_ms) pairs.
     deltas: Vec<(f64, f64)>,
-    /// Current overuse state.
-    pub state: BandwidthState,
+    /// Current overuse state. Read via [].
+    pub(crate) state: BandwidthState,
 }
 
 impl TrendlineDetector {
@@ -89,6 +90,11 @@ impl TrendlineDetector {
     /// Returns `true` when the detector has declared overuse.
     pub fn overuse(&self) -> bool {
         self.state == BandwidthState::Overuse
+    }
+
+    /// Current congestion state.
+    pub fn state(&self) -> BandwidthState {
+        self.state
     }
 
     fn trendline_slope(&self) -> f64 {

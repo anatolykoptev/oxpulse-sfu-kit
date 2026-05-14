@@ -80,8 +80,8 @@ fn main() {
     for i in 0..25 {
         tl.update(20.0 + i as f64 * 2.0, 20.0);
     }
-    println!("   Growing delay trendline state: {:?}", tl.state);
-    assert_eq!(tl.state, BandwidthState::Overuse);
+    println!("   Growing delay trendline state: {:?}", tl.state());
+    assert_eq!(tl.state(), BandwidthState::Overuse);
 
     println!("\nDone. See src/bwe/googcc/ for algorithm details.");
 }
