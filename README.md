@@ -123,6 +123,30 @@ cargo run --example basic-sfu --features active-speaker,metrics-prometheus
 See `examples/basic-sfu.rs` for a complete single-node SFU with a Prometheus
 `/metrics` endpoint.
 
+## Capacity testing
+
+`examples/synthetic_room.rs` is a self-contained load generator that spawns N
+synthetic peers in one process — no real network, no DTLS handshake. It drives the
+kit's fanout dispatch, per-subscriber simulcast layer-filter, and `delivered_media`
+counters directly via the `test-utils` seam, then reports peak RSS, CPU%, total
+packets forwarded, and p50/p95/p99 fanout latency.
+
+```sh
+cargo run --release --example synthetic_room \
+    --features active-speaker,metrics-prometheus,kalman-bwe,googcc-bwe,pacer,test-utils \
+    -- --peers 8 --duration-secs 30 --packet-rate-pps 30 --bitrate-bps 1500000
+```
+
+Output is grep-friendly for D-Lite 4 scripting:
+
+```
+SYNTHETIC_ROOM_RESULT peers=8 duration_s=30 packets_forwarded=72000 peak_rss_mb=124 cpu_percent=18.3 latency_p50_us=85 latency_p95_us=210 latency_p99_us=450
+```
+
+**What is NOT measured:** str0m DTLS/ICE/SRTP, real UDP kernel path, actual wire
+bitrate (synthetic payload is always 4 bytes), GoogCC/pacer adapting to real TWCC
+feedback. See the example's module doc for full scope.
+
 ## Relationship to str0m
 
 We build on str0m's `Rtc` state machine. We do not replace it — we connect

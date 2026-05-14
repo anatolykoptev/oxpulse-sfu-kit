@@ -50,6 +50,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+clap = { version = "4", features = ["derive"] }
+hdrhistogram = "7"
+libc = "0.2"
 
 [[test]]
 name = "multi_client"
@@ -86,6 +89,11 @@ required-features = ["googcc-bwe"]
 name = "twcc_googcc_wiring"
 path = "examples/twcc_googcc_wiring.rs"
 required-features = ["googcc-bwe", "kalman-bwe", "test-utils"]
+
+[[example]]
+name = "synthetic_room"
+path = "examples/synthetic_room.rs"
+required-features = ["active-speaker", "metrics-prometheus", "kalman-bwe", "googcc-bwe", "pacer", "test-utils"]
 
 [package.metadata.docs.rs]
 all-features = true
