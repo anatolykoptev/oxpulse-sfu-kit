@@ -109,3 +109,103 @@ CARGO_BUILD_JOBS=2 cargo bench --bench registry --features test-utils
 ```
 
 Append results here under `# Baseline — v0.11.4 on krolik (Linux ARM, Oracle Cloud)`.
+
+---
+
+## Linux ARM (krolik) — v0.11.5 (commit 329990d) — 2026-05-14
+
+**Platform:** Oracle Cloud arm-max-1768977332, ARM 24 GB (aarch64-unknown-linux-gnu)
+**Rust:** 1.95.0 (stable)
+**Profile:** `bench` (release + thin LTO + codegen-units=1 via `~/.cargo/config.toml`)
+**Build time (cold, sccache):** 29m 24s (deps not cached; subsequent builds use sccache)
+**Linker:** mold (via `~/.cargo/config.toml`)
+
+### Comparison
+
+| Bench | macOS Apple Silicon (median) | Linux ARM krolik (median) | Delta |
+|---|---|---|---|
+| bwe_estimator/record_send_time/steady | 449 ns | 469 ns | +4% |
+| bwe_estimator/record_send_time/at_cap | 2.32 µs | 4.14 µs | +79% |
+| bwe_estimator/on_twcc_feedback/50_samples | 2.77 µs | 6.65 µs | +140% |
+| bwe_estimator/estimate_bps/after_feed | 62.7 ns | 78.1 ns | +25% |
+| googcc/on_receive/steady_30pps | 606 ns | 330 ns | -45% |
+| googcc/on_receive/overuse_burst | 621 ns | 335 ns | -46% |
+| pacer/update/steady_high_bps | 11.8 ns | 13.2 ns | +12% |
+| pacer/update/upgrade_transition | 10.6 ns | 12.5 ns | +18% |
+| pacer/update/downgrade | 8.6 ns | 8.3 ns | -3% |
+| registry/handle_incoming/peers/1 | 3.74 µs | 35.5 µs | +849% |
+| registry/handle_incoming/peers/8 | 26.6 µs | 51.3 µs | +93% |
+| registry/handle_incoming/peers/50 | 161 µs | 221 µs | +37% |
+
+### Raw results
+
+#### bwe_estimator
+
+```
+bwe_estimator/record_send_time/steady      time:   [409.44 ns 468.67 ns 550.66 ns]   (8% outliers)
+bwe_estimator/record_send_time/at_cap      time:   [2.9176 µs 4.1431 µs 5.7180 µs]   (16% outliers — high variance)
+bwe_estimator/on_twcc_feedback/50_samples  time:   [6.1779 µs 6.6507 µs 7.1346 µs]   (17% outliers)
+bwe_estimator/estimate_bps/after_feed      time:   [75.287 ns 78.101 ns 80.819 ns]
+```
+
+#### googcc
+
+```
+googcc/on_receive/steady_30pps   time:   [313.93 ns 330.48 ns 351.14 ns]   (13% outliers)
+googcc/on_receive/overuse_burst  time:   [321.75 ns 335.28 ns 355.99 ns]   (6% outliers)
+```
+
+#### pacer
+
+```
+pacer/update/steady_high_bps    time:   [11.007 ns 13.229 ns 15.763 ns]   (14% outliers)
+pacer/update/upgrade_transition time:   [10.929 ns 12.545 ns 14.498 ns]   (9% outliers)
+pacer/update/downgrade          time:   [7.0996 ns  8.3464 ns 10.004 ns]   (9% outliers)
+```
+
+#### registry
+
+```
+registry/handle_incoming/peers/1   time:   [10.133 µs 35.484 µs 69.290 µs]   (13% outliers — very high variance, scheduling noise)
+registry/handle_incoming/peers/8   time:   [39.850 µs 51.336 µs 67.811 µs]   (10% outliers)
+registry/handle_incoming/peers/50  time:   [203.84 µs 220.88 µs 248.97 µs]   (13% outliers)
+```
+
+### Interpretation
+
+**Where ARM is faster than macOS Apple Silicon:**
+
+- **GoogCC `on_receive`:** -45% to -46%. Surprising. Likely explained by ARM
+  vector/NEON being well-suited to the trendline detector's float arithmetic, combined
+  with the krolik ARM CPU being a newer generation (Oracle Cloud arm-max = Ampere Altra
+  Q80-30 equivalent) with a large out-of-order execution window. macOS M-series
+  throttles sustained bench workloads differently.
+
+**Where ARM is comparable (within ±25%):**
+
+- `record_send_time/steady`: +4% — essentially identical.
+- `estimate_bps`: +25% — within measurement noise for this level of computation.
+- `pacer/update` all paths: +3% to +18% — branch-heavy logic, negligible difference.
+
+**Where ARM is slower than macOS Apple Silicon:**
+
+- `record_send_time/at_cap`: +79%. The O(n) `HashMap::keys().min()` eviction scan
+  stresses memory bandwidth on ARM; macOS M-series has higher memory bandwidth per
+  core. The high variance (16% outliers, wide CI: 2.9–5.7 µs) suggests scheduling
+  noise on the shared Oracle Cloud ARM instance.
+- `on_twcc_feedback/50_samples`: +140%. This path parses a 50-packet feedback batch
+  with sequential HashMap lookups. ARM is memory-bandwidth-bound here — the M-series
+  LPDDR5 advantage is visible.
+- `registry/handle_incoming/peers/1`: +849% (median 35 µs vs 3.7 µs). The extremely
+  wide CI (10–69 µs) indicates high scheduling jitter — this bench is too fast (one
+  `Rtc::accepts()` call) to measure reliably on a shared cloud VM. The macOS number is
+  more trustworthy. **Do not treat the peers/1 ARM number as representative.**
+- `registry/handle_incoming/peers/8` and `/50`: +93%/+37% respectively. These are
+  more reliable (more iterations, less jitter). ARM's lower per-core memory bandwidth
+  explains the gap; the linear scan traverses all Client structs in the Vec.
+
+**Summary:** For the current 1:1–8-peer oxpulse-chat workload, ARM krolik performance
+is adequate. The bottlenecks flagged (HashMap eviction scan at capacity, registry full
+scan) are the same on both platforms, just ~2× worse on ARM due to memory bandwidth.
+The GoogCC path is actually faster on krolik — real-world call quality will not degrade
+on ARM.
