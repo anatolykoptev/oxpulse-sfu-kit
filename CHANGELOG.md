@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.5] — 2026-05-14
+
+Phase D-Lite: pragmatic perf for current workload (~8-peer rooms).
+Three additive features — no API breakage, no MSRV change.
+
+### Added
+
+- **`forward_latency_seconds` Prometheus histogram** in `SfuMetrics`
+  (feature `metrics-prometheus`). Captures end-to-end RTP forwarding
+  time per packet, observed in `Client::handle_media_data_out`.
+  Buckets: 100µs → 100ms (7 buckets). Gives prod visibility into call
+  quality regressions before customers report them.
+- **`examples/synthetic_room.rs`** — runnable load generator. CLI
+  `--peers N --duration-secs S --packet-rate-pps P --bitrate-bps B`.
+  Loopback transport (no real DTLS/UDP) — measures kit fanout +
+  per-subscriber layer-filter + delivered_media atomics. Reports peak
+  RSS, CPU%, packets forwarded, p50/p95/p99 forward latency.
+- **`benches/` criterion harness** with v0.11.4 baseline numbers
+  (macOS Apple Silicon, in `benches/BASELINE.md`). Regression guard for
+  future refactors — bench delta MUST be committed in PR description if
+  >5% movement.
+
+### Notes
+
+This release is about operational maturity, not raw perf. The actual
+O(n) cliffs identified during the audit (send_times eviction,
+Registry::route linear scan) were intentionally NOT addressed — they
+don't manifest below ~50 peers/room, which is above current workload
+(1:1 to ~8 peers). Will revisit when capacity data shows otherwise.
+
 ## [0.11.4] — 2026-05-14
 
 ### Added
