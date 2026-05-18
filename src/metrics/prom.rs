@@ -63,6 +63,27 @@ pub struct SfuMetrics {
     /// Packets taking longer than 100ms land in the +Inf bucket and are a
     /// signal of degraded call quality worth alerting on.
     pub forward_latency_seconds: HistogramVec,
+    /// RTP bytes by direction and media kind.
+    ///
+    /// `direction="in"` counts bytes received from publishers (inbound to the SFU).
+    /// `direction="out"` counts bytes forwarded to subscribers (outbound from the SFU).
+    /// `kind` ∈ {"audio", "video"}.
+    ///
+    /// Prometheus query examples:
+    /// - `rate(sfu_track_bytes_total{direction="out",kind="video"}[1m])` — outbound video throughput
+    /// - `rate(sfu_track_bytes_total{direction="in"}[1m])` — total inbound throughput
+    pub track_bytes_total: IntCounterVec,
+    /// RTCP PLI (Picture Loss Indication) events.
+    ///
+    /// `direction="rx"` increments when a subscriber sends a PLI to the SFU
+    /// (subscriber requests a keyframe from the publisher).
+    /// `direction="tx"` increments when the SFU sends a PLI upstream to a publisher
+    /// (non-contiguous media detected on an incoming track).
+    ///
+    /// Prometheus query examples:
+    /// - `rate(sfu_rtcp_pli_total{direction="rx"}[1m])` — subscriber PLI rate (video corruption proxy)
+    /// - `rate(sfu_rtcp_pli_total{direction="tx"}[1m])` — publisher keyframe request rate
+    pub rtcp_pli_total: IntCounterVec,
 }
 
 impl SfuMetrics {
@@ -207,6 +228,24 @@ impl SfuMetrics {
         )
         .context("forward_latency_seconds")?);
 
+        let track_bytes_total = reg!(IntCounterVec::new(
+            Opts::new(
+                "track_bytes_total",
+                "RTP payload bytes by direction (in=publisher→SFU, out=SFU→subscriber) and kind.",
+            ),
+            &["direction", "kind"],
+        )
+        .context("track_bytes_total")?);
+
+        let rtcp_pli_total = reg!(IntCounterVec::new(
+            Opts::new(
+                "rtcp_pli_total",
+                "RTCP PLI events. direction=rx: received from subscriber; direction=tx: sent to publisher.",
+            ),
+            &["direction"],
+        )
+        .context("rtcp_pli_total")?);
+
         Ok(Self {
             registry: Arc::new(registry),
             active_participants,
@@ -225,6 +264,8 @@ impl SfuMetrics {
             pacer_suspend_video_total,
             video_frames_dropped_total,
             forward_latency_seconds,
+            track_bytes_total,
+            rtcp_pli_total,
         })
     }
 
@@ -337,6 +378,33 @@ impl SfuMetrics {
         self.speaker_immediate.with_label_values(lv).set(immediate);
         self.speaker_medium.with_label_values(lv).set(medium);
         self.speaker_long.with_label_values(lv).set(long_score);
+    }
+
+    /// Add `n` bytes to the inbound byte counter for a given media kind.
+    ///
+    /// Call once per inbound `MediaData` event in `track_in_media`.
+    /// `kind` must be `"audio"` or `"video"`.
+    pub(crate) fn add_track_bytes_in(&self, kind: &str, n: u64) {
+        self.track_bytes_total
+            .with_label_values(&["in", kind])
+            .inc_by(n);
+    }
+
+    /// Add `n` bytes to the outbound byte counter for a given media kind.
+    ///
+    /// Call once per forwarded `MediaData` packet in `handle_media_data_out`.
+    /// `kind` must be `"audio"` or `"video"`.
+    pub(crate) fn add_track_bytes_out(&self, kind: &str, n: u64) {
+        self.track_bytes_total
+            .with_label_values(&["out", kind])
+            .inc_by(n);
+    }
+
+    /// Increment the PLI counter for the given direction.
+    ///
+    /// `direction` must be `"rx"` (received from subscriber) or `"tx"` (sent to publisher).
+    pub(crate) fn inc_rtcp_pli(&self, direction: &str) {
+        self.rtcp_pli_total.with_label_values(&[direction]).inc();
     }
 
     /// Remove all per-peer label series for a disconnected peer.

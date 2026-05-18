@@ -44,6 +44,9 @@ impl SfuMetrics {
         _long_score: f64,
     ) {
     }
+    pub(crate) fn add_track_bytes_in(&self, _kind: &str, _n: u64) {}
+    pub(crate) fn add_track_bytes_out(&self, _kind: &str, _n: u64) {}
+    pub(crate) fn inc_rtcp_pli(&self, _direction: &str) {}
     /// Noop cardinality reaper — no-op when Prometheus is disabled.
     pub fn reap_dead_peer(&self, _peer_id: u64) {}
 }

@@ -106,6 +106,13 @@ impl Client {
             .unwrap_or("other");
         self.metrics.inc_forwarded_packets(kind_label);
 
+        // Metric: outbound bytes forwarded to this subscriber (direction=out).
+        // Skip "other" kind to keep label cardinality to two known values.
+        if kind_label != "other" {
+            self.metrics
+                .add_track_bytes_out(kind_label, data.data().len() as u64);
+        }
+
         // Prometheus: layer_selection_total{layer} — simulcast packets only.
         if let Some(rid) = data.rid() {
             let layer_label = rid_label(rid.to_str0m());

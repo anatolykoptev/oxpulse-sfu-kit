@@ -128,6 +128,57 @@ pub fn seed_track_in_relay(client: &mut Client, mid_tag: u8, kind: MediaKind) ->
     arc
 }
 
+impl Client {
+    /// Simulate an inbound RTP media payload arriving on this client.
+    ///
+    /// Calls `track_in_media` directly to trigger inbound-byte metrics
+    /// without running a real WebRTC/DTLS session.
+    ///
+    /// `mid_tag` must match a track previously seeded with [`seed_track_in`] —
+    /// the kind label is resolved from the seeded `TrackIn.kind` at the call site.
+    /// `payload_bytes` sets the synthetic payload size (how many bytes to report).
+    ///
+    /// Triggers the `sfu_track_bytes_total{direction="in"}` metric and returns
+    /// the resulting `Propagated::MediaData` exactly as the production path would.
+    ///
+    /// Only available with the `test-utils` feature.
+    pub fn on_media_data_for_tests(
+        &mut self,
+        mid_tag: u8,
+        payload_bytes: usize,
+    ) -> crate::propagate::Propagated {
+        let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
+        let pt = Pt::from(96u8);
+        let seq: SeqNo = 0u64.into();
+        let params = PayloadParams::new(
+            pt,
+            None,
+            CodecSpec {
+                codec: Codec::Vp8,
+                clock_rate: Frequency::NINETY_KHZ,
+                channels: None,
+                format: FormatParams::default(),
+            },
+        );
+        let raw = MediaData {
+            mid,
+            pt,
+            rid: None,
+            params,
+            time: MediaTime::from_90khz(0),
+            network_time: std::time::Instant::now(),
+            seq_range: seq..=seq,
+            data: vec![0u8; payload_bytes],
+            ext_vals: ExtensionValues::default(),
+            codec_extra: CodecExtra::None,
+            contiguous: true,
+            last_sender_info: None,
+            audio_start_of_talk_spurt: false,
+        };
+        self.track_in_media(raw)
+    }
+}
+
 /// Force a track-out entry into `Open` state so `incoming_keyframe_req` can
 /// find it by MID.
 ///

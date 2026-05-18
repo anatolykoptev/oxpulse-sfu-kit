@@ -206,6 +206,19 @@ impl Client {
         if let Some(rid) = data.rid {
             self.active_rids.insert(SfuRid::from_str0m(rid));
         }
+        // Metric: inbound bytes from publisher (direction=in).
+        // str0m 0.18 MediaData has no `kind` field — look it up from tracks_in.
+        let kind_label = self
+            .tracks_in
+            .iter()
+            .find(|e| e.id.mid == data.mid)
+            .map(|e| match e.id.kind {
+                MediaKind::Audio => "audio",
+                MediaKind::Video => "video",
+            })
+            .unwrap_or("video"); // default to video on unexpected miss
+        self.metrics
+            .add_track_bytes_in(kind_label, data.data.len() as u64);
         Propagated::MediaData(self.id, crate::media::SfuMediaPayload::from_str0m(data))
     }
 
