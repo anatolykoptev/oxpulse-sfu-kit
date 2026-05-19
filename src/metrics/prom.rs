@@ -75,14 +75,15 @@ pub struct SfuMetrics {
     pub track_bytes_total: IntCounterVec,
     /// RTCP PLI (Picture Loss Indication) events.
     ///
-    /// `direction="rx"` increments when a subscriber sends a PLI to the SFU
-    /// (subscriber requests a keyframe from the publisher).
-    /// `direction="tx"` increments when the SFU sends a PLI upstream to a publisher
+    /// Uses kit-side semantic vocabulary (matching `sfu_track_bytes_total`):
+    /// `direction="in"` increments when a subscriber sends a PLI to the SFU
+    /// (keyframe request received by the kit from a subscriber).
+    /// `direction="out"` increments when the SFU sends a PLI upstream to a publisher
     /// (non-contiguous media detected on an incoming track).
     ///
     /// Prometheus query examples:
-    /// - `rate(sfu_rtcp_pli_total{direction="rx"}[1m])` — subscriber PLI rate (video corruption proxy)
-    /// - `rate(sfu_rtcp_pli_total{direction="tx"}[1m])` — publisher keyframe request rate
+    /// - `rate(sfu_rtcp_pli_total{direction="in"}[1m])` — subscriber PLI rate (video corruption proxy)
+    /// - `rate(sfu_rtcp_pli_total{direction="out"}[1m])` — publisher keyframe request rate
     pub rtcp_pli_total: IntCounterVec,
 }
 
@@ -240,7 +241,7 @@ impl SfuMetrics {
         let rtcp_pli_total = reg!(IntCounterVec::new(
             Opts::new(
                 "rtcp_pli_total",
-                "RTCP PLI events. direction=rx: received from subscriber; direction=tx: sent to publisher.",
+                "RTCP PLI events. direction=in: received from subscriber; direction=out: sent to publisher.",
             ),
             &["direction"],
         )
@@ -402,7 +403,8 @@ impl SfuMetrics {
 
     /// Increment the PLI counter for the given direction.
     ///
-    /// `direction` must be `"rx"` (received from subscriber) or `"tx"` (sent to publisher).
+    /// `direction` must be `"in"` (received from subscriber) or `"out"` (sent to publisher).
+    /// Uses kit-side semantic vocabulary — matches `sfu_track_bytes_total` direction labels.
     pub(crate) fn inc_rtcp_pli(&self, direction: &str) {
         self.rtcp_pli_total.with_label_values(&[direction]).inc();
     }

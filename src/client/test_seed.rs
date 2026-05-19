@@ -20,6 +20,18 @@ use crate::metrics::SfuMetrics;
 use crate::propagate::ClientId;
 
 impl Client {
+    /// Look up the cached `Mid`→`MediaKind` mapping for the given `mid_tag`.
+    ///
+    /// Returns `Some(kind)` if the cache was populated (via `track_in_added`
+    /// or `seed_track_in`), `None` otherwise.
+    ///
+    /// Used by `mid_to_kind_lookup_is_o1_after_track_open` to verify the cache
+    /// without going through the full WebRTC pipeline.
+    pub fn mid_to_kind_for_tests(&self, mid_tag: u8) -> Option<str0m::media::MediaKind> {
+        let mid: str0m::media::Mid = str0m::media::Mid::from(&*format!("m{mid_tag}"));
+        self.mid_to_kind.get(&mid).copied()
+    }
+
     /// Inject an observed publisher RID without running the `track_in_media` path.
     ///
     /// Production code should never call this — `track_in_media` owns the
@@ -57,6 +69,8 @@ pub fn new_client(id: ClientId) -> Client {
 /// other clients' `tracks_out`.
 pub fn seed_track_in(client: &mut Client, mid_tag: u8, kind: MediaKind) -> Arc<TrackIn> {
     let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
+    // Mirror the production `track_in_added` path: populate the O(1) cache.
+    client.mid_to_kind.insert(mid, kind);
     let entry = TrackInEntry {
         id: Arc::new(TrackIn {
             origin: client.id,
@@ -114,6 +128,8 @@ pub fn make_media_data(mid_tag: u8, rid: Option<SfuRid>) -> SfuMediaPayload {
 /// keyframe-routing path treats this track as originating from an upstream SFU.
 pub fn seed_track_in_relay(client: &mut Client, mid_tag: u8, kind: MediaKind) -> Arc<TrackIn> {
     let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
+    // Mirror the production `track_in_added` path: populate the O(1) cache.
+    client.mid_to_kind.insert(mid, kind);
     let entry = TrackInEntry {
         id: Arc::new(TrackIn {
             origin: client.id,
