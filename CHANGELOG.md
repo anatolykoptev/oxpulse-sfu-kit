@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.7] - 2026-05-19
+
+### Performance
+- O(1) `mid → MediaKind` lookup via `HashMap<Mid, MediaKind>` cache (was O(n) linear scan per RTP packet) (#27)
+
+### Breaking
+- `sfu_rtcp_pli_total` label `direction="rx"|"tx"` renamed to `"in"|"out"` for consistency with `sfu_track_bytes_total` (#27)
+- Consumers (dashboards/alerts) referencing `direction="rx"` or `direction="tx"` on PLI counter must update. Single confirmed consumer = oxpulse-partner-edge v0.11.6; no Grafana dashboards reference old labels (verified by reviewer grep).
+
+### Notes
+- Followups not yet shipped: silent `mid_to_kind` cache-miss should log/bump metric (per project CLAUDE.md rule); `mid_to_kind_lookup_is_o1_after_track_open` test name overpromises (functional only, не perf bench).
+
 ## [0.11.6] - 2026-05-19
 
 ### Added
