@@ -9,7 +9,7 @@
 //!
 //! Submodules: [`keyframe`], [`fanout`], [`layer`], [`tracks`].
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Weak};
 use std::time::Instant;
@@ -58,6 +58,15 @@ pub struct Client {
     /// Simulcast RIDs this peer has been observed publishing.
     /// Populated on every incoming `MediaData`. Empty = bootstrap / non-simulcast.
     pub(crate) active_rids: HashSet<SfuRid>,
+    /// O(1) cache: `Mid` → `MediaKind` for all inbound tracks.
+    ///
+    /// Populated in `track_in_added` (the `Event::MediaAdded` handler) so that
+    /// `track_in_media` — the hot path called on every inbound RTP packet —
+    /// can resolve the kind label without scanning `tracks_in`.
+    ///
+    /// Outbound path already achieves O(1) via `kind_label_from_pt`;
+    /// this brings the inbound path to parity.
+    pub(crate) mid_to_kind: HashMap<Mid, MediaKind>,
     /// Outbound datagrams pending flush by the registry.
     pub(crate) pending_out: VecDeque<str0m::net::Transmit>,
     /// Prometheus handles (shared with the registry when inserted).
@@ -185,6 +194,8 @@ impl Client {
     }
 
     fn track_in_added(&mut self, mid: Mid, kind: MediaKind) -> Propagated {
+        // Cache Mid→kind so track_in_media (hot path) resolves kind in O(1).
+        self.mid_to_kind.insert(mid, kind);
         let entry = TrackInEntry {
             id: Arc::new(TrackIn {
                 origin: self.id,
@@ -207,12 +218,13 @@ impl Client {
             self.active_rids.insert(SfuRid::from_str0m(rid));
         }
         // Metric: inbound bytes from publisher (direction=in).
-        // str0m 0.18 MediaData has no `kind` field — look it up from tracks_in.
+        // O(1) lookup via the mid_to_kind cache populated in track_in_added.
+        // Falls back to "video" on unexpected miss (same behaviour as the prior
+        // linear scan default) — bounded defensive path, not a normal case.
         let kind_label = self
-            .tracks_in
-            .iter()
-            .find(|e| e.id.mid == data.mid)
-            .map(|e| match e.id.kind {
+            .mid_to_kind
+            .get(&data.mid)
+            .map(|k| match k {
                 MediaKind::Audio => "audio",
                 MediaKind::Video => "video",
             })

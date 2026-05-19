@@ -1,7 +1,7 @@
 //! `Client` construction — wraps a fresh `Rtc`, allocates a process-unique
 //! `ClientId`, and initialises every field to its zero-state default.
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -36,6 +36,7 @@ impl Client {
             chosen_rid: None,
             desired_layer: layer::LOW,
             active_rids: HashSet::new(),
+            mid_to_kind: HashMap::new(),
             pending_out: VecDeque::new(),
             metrics,
             delivered_media: AtomicU64::new(0),

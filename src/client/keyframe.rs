@@ -44,9 +44,9 @@ impl Client {
         }
         let _ = writer.request_keyframe(rid, kind);
         entry.last_keyframe_request = Some(Instant::now());
-        // Metric: PLI/FIR sent upstream to publisher (tx direction).
+        // Metric: PLI/FIR sent upstream to publisher (direction=out, kit-side semantic).
         if matches!(kind, KeyframeRequestKind::Pli) {
-            self.metrics.inc_rtcp_pli("tx");
+            self.metrics.inc_rtcp_pli("out");
         }
     }
 
@@ -64,9 +64,9 @@ impl Client {
             return Propagated::Noop;
         };
         req.rid = self.chosen_rid;
-        // Metric: PLI received from subscriber (rx direction).
+        // Metric: PLI received from subscriber (direction=in, kit-side semantic).
         if matches!(req.kind, KeyframeRequestKind::Pli) {
-            self.metrics.inc_rtcp_pli("rx");
+            self.metrics.inc_rtcp_pli("in");
         }
         if track_in.relay_source {
             // The publisher is on another SFU edge — we cannot send PLI/FIR to
