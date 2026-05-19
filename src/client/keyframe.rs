@@ -44,6 +44,10 @@ impl Client {
         }
         let _ = writer.request_keyframe(rid, kind);
         entry.last_keyframe_request = Some(Instant::now());
+        // Metric: PLI/FIR sent upstream to publisher (tx direction).
+        if matches!(kind, KeyframeRequestKind::Pli) {
+            self.metrics.inc_rtcp_pli("tx");
+        }
     }
 
     /// Translate a subscriber's keyframe request to the origin client's track.
@@ -60,6 +64,10 @@ impl Client {
             return Propagated::Noop;
         };
         req.rid = self.chosen_rid;
+        // Metric: PLI received from subscriber (rx direction).
+        if matches!(req.kind, KeyframeRequestKind::Pli) {
+            self.metrics.inc_rtcp_pli("rx");
+        }
         if track_in.relay_source {
             // The publisher is on another SFU edge — we cannot send PLI/FIR to
             // it because it has no inbound negotiation for this direction.

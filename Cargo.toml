@@ -71,6 +71,10 @@ required-features = ["test-utils", "metrics-prometheus"]
 name = "voice_dc"
 required-features = ["test-utils"]
 
+[[test]]
+name = "media_quality_metrics"
+required-features = ["test-utils", "metrics-prometheus"]
+
 [[example]]
 name = "basic-sfu"
 path = "examples/basic-sfu.rs"
