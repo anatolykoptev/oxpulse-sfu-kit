@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.6] - 2026-05-19
+
+### Added
+- `sfu_track_bytes_total{direction,kind}` counter — RTP byte flow per direction/kind (#25)
+- `sfu_rtcp_pli_total{direction}` counter — PLI rate by direction (#25)
+
+### Notes
+- NACK skipped — str0m 0.18 has no public NACK hook (followup tracked)
+- Jitter metric scope was deferred — `peer_jitter_ms` gauge remains placeholder
+
 ## [0.11.5] — 2026-05-14
 
 Phase D-Lite: pragmatic perf for current workload (~8-peer rooms).
