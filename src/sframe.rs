@@ -78,21 +78,31 @@ impl KeyEpoch {
     }
 }
 
+/// On-the-wire width of an RFC 9605 §6.1 (v1) KID: a fixed 4-byte, big-endian
+/// 32-bit value. [`KeyEpochSerializer`] uses this width; a consumer writing its
+/// own serializer for a non-standard layout can reference it.
+pub const SFRAME_KID_WIDTH: usize = 4;
+
 /// Reference [`ExtensionSerializer`] for the SFrame key-epoch (KID) RTP header
 /// extension.
 ///
 /// # Wire format
 ///
-/// The KID is encoded as its minimal-length big-endian byte sequence (1–8
-/// bytes; a KID of `0` is a single `0x00` byte). This mirrors how small
-/// identifiers are carried compactly in RTP header extensions. If your clients
-/// use a different layout, implement your own serializer that parses into /
-/// writes from a [`KeyEpoch`] user value.
+/// A **fixed 4-byte, big-endian 32-bit KID**, matching RFC 9605 §6.1 (the v1
+/// KID width) and the `sframe-ratchet` browser client. This is the
+/// interoperable default; if your clients encode the KID differently, implement
+/// your own serializer that parses into / writes from a [`KeyEpoch`] user value
+/// — the fanout path keys on the `KeyEpoch` **type**, not these bytes.
+///
+/// [`KeyEpoch`] holds a `u64` for generality, but the RFC v1 KID is 32-bit: a
+/// value exceeding `u32::MAX` cannot be represented in the 4-byte form and is
+/// **not written** (str0m then omits the extension), rather than silently
+/// truncated. Supply your own serializer for wider KIDs.
 ///
 /// The serializer applies to **both** audio and video media (SFrame protects
-/// either). Its value is ≤ 8 bytes, so it never *requires* the two-byte
-/// extension form (str0m may still pick that form globally if another
-/// registered extension needs it — a full `u8` length encodes 8 bytes fine).
+/// either). Its 4-byte value never *requires* the two-byte extension form
+/// (str0m may still pick that form globally if another registered extension
+/// needs it — a full `u8` length encodes 4 bytes fine).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct KeyEpochSerializer;
 
@@ -101,26 +111,25 @@ impl ExtensionSerializer for KeyEpochSerializer {
         let Some(ke) = ev.user_values.get::<KeyEpoch>() else {
             return 0;
         };
-        let bytes = ke.as_u64().to_be_bytes();
-        // Minimal big-endian: strip leading zero bytes, but always keep ≥ 1.
-        let start = bytes.iter().position(|&b| b != 0).unwrap_or(bytes.len() - 1);
-        let slice = &bytes[start..];
-        if slice.len() > buf.len() {
+        // RFC 9605 §6.1 v1 KID is 32-bit; a wider value is unrepresentable in
+        // the 4-byte form — omit rather than truncate to a wrong KID.
+        let Ok(kid32) = u32::try_from(ke.as_u64()) else {
+            return 0;
+        };
+        if buf.len() < SFRAME_KID_WIDTH {
             return 0;
         }
-        buf[..slice.len()].copy_from_slice(slice);
-        slice.len()
+        buf[..SFRAME_KID_WIDTH].copy_from_slice(&kid32.to_be_bytes());
+        SFRAME_KID_WIDTH
     }
 
     fn parse_value(&self, buf: &[u8], ev: &mut ExtensionValues) -> bool {
-        if buf.is_empty() || buf.len() > 8 {
+        // Fixed-width: accept exactly the 4-byte RFC v1 KID, nothing else.
+        let Ok(bytes) = <[u8; SFRAME_KID_WIDTH]>::try_from(buf) else {
             return false;
-        }
-        let mut v = 0u64;
-        for &b in buf {
-            v = (v << 8) | u64::from(b);
-        }
-        ev.user_values.set(KeyEpoch::new(v));
+        };
+        ev.user_values
+            .set(KeyEpoch::new(u64::from(u32::from_be_bytes(bytes))));
         true
     }
 
@@ -155,20 +164,20 @@ mod tests {
         assert_eq!(KeyEpoch::new(0).as_u64(), 0);
     }
 
-    /// The reference serializer round-trips a KID through the RTP header
-    /// extension wire format: what a subscriber's str0m parses out must equal
-    /// what the SFU's str0m serialized in. Exercises the exact `write_to` /
-    /// `parse_value` calls str0m makes on the fanout write and on ingest.
+    /// The reference serializer round-trips a 32-bit KID through the fixed
+    /// 4-byte RFC 9605 §6.1 wire format: what a subscriber's str0m parses out
+    /// must equal what the SFU's str0m serialized in. Exercises the exact
+    /// `write_to` / `parse_value` calls str0m makes on fanout write and ingest.
     #[test]
     fn key_epoch_serializer_wire_roundtrip() {
         let ser = KeyEpochSerializer;
-        for kid in [0u64, 1, 7, 255, 256, 65_535, 1 << 40, u64::MAX] {
+        for kid in [0u64, 1, 7, 255, 256, 65_535, u64::from(u32::MAX)] {
             let mut out = ExtensionValues::default();
             out.user_values.set(KeyEpoch::new(kid));
 
             let mut buf = [0u8; 16];
             let n = ser.write_to(&mut buf, &out);
-            assert!((1..=8).contains(&n), "kid={kid} wrote {n} bytes");
+            assert_eq!(n, SFRAME_KID_WIDTH, "kid={kid} must write a fixed 4 bytes");
 
             let mut parsed = ExtensionValues::default();
             assert!(ser.parse_value(&buf[..n], &mut parsed), "kid={kid} parse");
@@ -178,6 +187,29 @@ mod tests {
                 "kid={kid} did not round-trip on the wire"
             );
         }
+    }
+
+    /// A KID exceeding the RFC v1 32-bit width is unrepresentable in the 4-byte
+    /// form: the serializer omits it (writes 0) rather than truncating to a
+    /// wrong KID. Consumers with wider KIDs must supply their own serializer.
+    #[test]
+    fn key_epoch_serializer_omits_kid_above_u32() {
+        let ser = KeyEpochSerializer;
+        let mut out = ExtensionValues::default();
+        out.user_values.set(KeyEpoch::new(u64::from(u32::MAX) + 1));
+        let mut buf = [0u8; 16];
+        assert_eq!(ser.write_to(&mut buf, &out), 0);
+    }
+
+    /// A destination buffer smaller than the 4-byte KID width is refused rather
+    /// than writing a partial/truncated KID.
+    #[test]
+    fn key_epoch_serializer_refuses_short_buffer() {
+        let ser = KeyEpochSerializer;
+        let mut out = ExtensionValues::default();
+        out.user_values.set(KeyEpoch::new(7));
+        let mut buf = [0u8; SFRAME_KID_WIDTH - 1];
+        assert_eq!(ser.write_to(&mut buf, &out), 0);
     }
 
     /// With no `KeyEpoch` user value present, the serializer writes nothing so
@@ -190,12 +222,16 @@ mod tests {
         assert_eq!(ser.write_to(&mut buf, &ev), 0);
     }
 
-    /// Rejects an over-long buffer rather than silently truncating the KID.
+    /// Fixed-width parse: only an exactly-4-byte buffer is accepted; a short,
+    /// long, or empty buffer is rejected rather than mis-parsed.
     #[test]
-    fn key_epoch_serializer_rejects_oversized_buf() {
+    fn key_epoch_serializer_rejects_wrong_width() {
         let ser = KeyEpochSerializer;
         let mut parsed = ExtensionValues::default();
-        assert!(!ser.parse_value(&[0u8; 9], &mut parsed));
         assert!(!ser.parse_value(&[], &mut parsed));
+        assert!(!ser.parse_value(&[0u8; 3], &mut parsed));
+        assert!(!ser.parse_value(&[0u8; 5], &mut parsed));
+        assert!(!ser.parse_value(&[0u8; 9], &mut parsed));
+        assert!(ser.parse_value(&[0u8; SFRAME_KID_WIDTH], &mut parsed));
     }
 }

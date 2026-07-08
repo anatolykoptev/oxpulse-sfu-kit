@@ -105,10 +105,14 @@ The kit forwards RTP payloads opaquely, so SFrame (RFC 9605) ciphertext — incl
 the in-payload SFrame header that carries the key id (KID) — passes through the SFU
 unchanged. The SFU never decrypts or inspects the payload.
 
-If your clients also signal the key epoch (KID) in a dedicated **RTP header
-extension**, the SFU forwards that too: the KID is captured off each inbound packet
-and re-attached to every fanned-out packet, so a subscriber can pick the right
-decryption key without waiting for the in-payload header.
+The in-payload KID above is authoritative and authenticated (it is part of the
+SFrame AEAD's AAD). As an **optional latency optimization**, some deployments
+*also* signal the KID in a dedicated **RTP header extension** so a subscriber can
+pre-warm the next key on rotation without first parsing the payload. If your
+clients do this, the SFU forwards it: the KID is captured off each inbound packet
+and re-attached to every fanned-out packet. This header-extension KID is a
+non-authoritative hint — receivers must still select the key from the in-payload
+header and let the AEAD fail closed on a mismatch.
 
 Like every str0m header extension, it must be registered on the `Rtc` and negotiated
 in SDP. Because the SFrame-KID extension has no standard URI, you choose the URI (it
@@ -124,9 +128,11 @@ let cfg = raw::rtc_config().set_extension(8, sframe::sframe_key_id_extension(SFR
 let rtc = SfuRtc::from_raw(cfg.build(std::time::Instant::now()));
 ```
 
-`sframe_key_id_extension` uses `KeyEpochSerializer` (minimal big-endian KID wire
-format); if your clients encode the KID differently, supply your own
-`ExtensionSerializer` that parses into / writes from a `KeyEpoch` user value. Key
+`sframe_key_id_extension` uses `KeyEpochSerializer`, whose wire format is a fixed
+4-byte big-endian 32-bit KID — matching RFC 9605 §6.1 (the v1 KID width) and the
+`sframe-ratchet` browser client. If your clients encode the KID differently,
+supply your own `ExtensionSerializer` that parses into / writes from a `KeyEpoch`
+user value (the fanout path keys on the `KeyEpoch` type, not the bytes). Key
 distribution (MLS RFC 9420) remains your signalling layer's responsibility.
 
 ## Not included (by design)
