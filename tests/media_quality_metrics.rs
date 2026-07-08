@@ -124,7 +124,7 @@ fn rtcp_pli_rx_increments_on_subscriber_pli() {
     registry.wire_track_for_tests(1, 0, 2);
 
     // Build a PLI keyframe request from the subscriber.
-    let mid: str0m::media::Mid = str0m::media::Mid::from(&*"m2");
+    let mid: str0m::media::Mid = str0m::media::Mid::from("m2");
     let kf_req = KeyframeRequest {
         mid,
         rid: None,
@@ -204,7 +204,7 @@ fn pli_counter_uses_in_out_labels_not_rx_tx() {
 
     registry.wire_track_for_tests(1, 0, 3);
 
-    let mid: str0m::media::Mid = str0m::media::Mid::from(&*"m3");
+    let mid: str0m::media::Mid = str0m::media::Mid::from("m3");
     let kf_req = KeyframeRequest {
         mid,
         rid: None,
