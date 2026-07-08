@@ -1,16 +1,21 @@
-//! SFrame (RFC 9605) key-epoch forwarding seam.
+//! SFrame (RFC 9605) key-epoch helper.
 //!
 //! The SFU does not encrypt or decrypt payloads — SFrame encryption is
-//! frame-level and end-to-end (publisher ↔ subscriber). This module provides
-//! the [`KeyEpoch`] newtype for forwarding the key-epoch RTP header extension
-//! so application code can route key distribution independently of the SFU
-//! forwarding path.
+//! frame-level and end-to-end (publisher ↔ subscriber). The SFrame ciphertext,
+//! including its in-payload header (which carries the KID), is forwarded opaquely
+//! as part of the RTP payload. The SFU does NOT parse or re-attach any key-id RTP
+//! *header extension*; if your clients use one, plumb the key epoch out-of-band
+//! (e.g. a dedicated DataChannel or your signalling layer).
+//!
+//! [`KeyEpoch`] is a convenience newtype for that app-side epoch bookkeeping — it
+//! is not read from or written to the RTP forwarding path by this crate.
 
-/// The key-epoch value carried in the SFrame RTP header extension.
+/// An SFrame key-epoch (KID) value, for app-side epoch bookkeeping.
 ///
 /// Maps to the `KID` (key identifier) field in SFrame (RFC 9605 §4.2).
-/// Increment on each group key rotation. Receivers use this to select the
-/// correct decryption key.
+/// Increment on each group key rotation; receivers use it to select the correct
+/// decryption key. This crate does not read or write this value on the RTP
+/// forwarding path — the application manages and distributes it out-of-band.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct KeyEpoch(pub u64);
 

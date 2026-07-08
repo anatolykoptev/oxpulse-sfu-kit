@@ -101,9 +101,14 @@ changes required. Signal DRED capability with `Propagated::AudioCodecHint`.
 
 ### End-to-end encryption (SFrame)
 
-The kit forwards RTP payloads opaquely — SFrame (RFC 9605) frames pass through
-unchanged. Use `KeyEpoch` from `crate::sframe` to forward the key-epoch RTP
-header extension. Key distribution (MLS RFC 9420) is your signalling layer's
+The kit forwards RTP payloads opaquely, so SFrame (RFC 9605) ciphertext — including
+the in-payload SFrame header that carries the key id (KID) — passes through the SFU
+unchanged. The SFU does **not** parse or re-attach any key-id RTP *header extension*:
+if your clients negotiate one, forwarding the key epoch is not the SFU's job. Plumb it
+out-of-band instead — e.g. a dedicated DataChannel or your signalling layer (this is
+what the production edge does). The `KeyEpoch` newtype in `crate::sframe` is a
+convenience type for that app-side epoch bookkeeping; it is not wired into the
+forwarding path. Key distribution (MLS RFC 9420) is your signalling layer's
 responsibility.
 
 ## Not included (by design)
