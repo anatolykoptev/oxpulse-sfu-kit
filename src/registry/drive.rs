@@ -267,7 +267,19 @@ impl Registry {
             .collect();
 
         for sub_id in subscriber_ids {
-            let budget = self.bandwidth.estimate_bps(sub_id, now).unwrap_or(0);
+            // Finding #1 (freeze_stall) fail-safe: `estimate_bps` returns `None`
+            // until the subscriber's estimator has been fed. The old
+            // `.unwrap_or(0)` coerced that to 0 bps, which is below
+            // `SUSPEND_VIDEO_BPS`, so a freshly-joined subscriber was driven to
+            // `SuspendVideo` within `SUSPEND_STREAK` ticks (~40ms) before any real
+            // estimate existed. Treat "no estimate yet" as "do not drive the pacer
+            // this tick" so an unfed estimator fails silent-safe (keep forwarding)
+            // instead of suspend-everyone. Mirrors oxpulse-partner-edge
+            // crates/sfu/src/client/fanout.rs `pacer_select_layer`, which returns
+            // the current layer on `None` without advancing the FSM.
+            let Some(budget) = self.bandwidth.estimate_bps(sub_id, now) else {
+                continue;
+            };
 
             // Mirror update_peer_bwe so Prometheus stays in sync.
             #[cfg(feature = "metrics-prometheus")]
