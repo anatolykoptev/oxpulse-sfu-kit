@@ -49,6 +49,24 @@ impl BandwidthEstimator {
         self.subscribers.remove(&subscriber);
     }
 
+    /// GoogCC-tier coverage as `(active, total)`: how many tracked subscribers have
+    /// a GoogCC estimator wired in (`PerSubscriber::googcc_active`) versus the total.
+    ///
+    /// Exposes the presence signal that `estimate_bps` alone hides: a subscriber
+    /// without GoogCC silently omits the GoogCC ceiling, which is indistinguishable
+    /// from "GoogCC wired but not currently constraining". Emit as a gauge / alert
+    /// when `active < total` in a room built with `googcc-bwe`.
+    #[cfg(feature = "googcc-bwe")]
+    #[must_use]
+    pub fn googcc_coverage(&self) -> (usize, usize) {
+        let active = self
+            .subscribers
+            .values()
+            .filter(|s| s.googcc_active())
+            .count();
+        (active, self.subscribers.len())
+    }
+
     /// Force both the Kalman delay and loss estimators for `subscriber` to report
     /// `bps`, bypassing TWCC.  Use in tests that need a known estimate without
     /// simulating real network feedback.
@@ -290,5 +308,24 @@ mod tests {
         assert!(est.estimate_bps(id(3), now).is_some());
         est.reap_dead(id(3));
         assert!(est.estimate_bps(id(3), now).is_none());
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn googcc_coverage_counts_enabled_subscribers() {
+        let mut est = BandwidthEstimator::new();
+        est.record_native_estimate(id(1), 1_000_000.0);
+        est.record_native_estimate(id(2), 1_000_000.0);
+        assert_eq!(
+            est.googcc_coverage(),
+            (0, 2),
+            "no subscriber has googcc yet"
+        );
+        est.enable_googcc_for_subscriber(id(1));
+        assert_eq!(
+            est.googcc_coverage(),
+            (1, 2),
+            "one of two subscribers now has the googcc ceiling wired"
+        );
     }
 }

@@ -83,6 +83,17 @@ impl PerSubscriber {
         }
     }
 
+    /// Whether a GoogCC estimator is wired in for this subscriber.
+    ///
+    /// `false` means [`Self::combined_bps`] silently omits the GoogCC ceiling for
+    /// this subscriber — a presence signal that a normal-looking `estimate_bps`
+    /// value otherwise hides. Aggregate via [`super::estimator::BandwidthEstimator::googcc_coverage`].
+    #[cfg(feature = "googcc-bwe")]
+    #[must_use]
+    pub fn googcc_active(&self) -> bool {
+        self.googcc.is_some()
+    }
+
     /// Combined bitrate estimate: min(kalman, loss) then apply GCC and hint ceilings.
     ///
     /// Returns at least 0; the result is not further clamped to MIN_BITRATE_BPS
