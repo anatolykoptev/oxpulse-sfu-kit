@@ -510,3 +510,55 @@ fn unfed_estimator_does_not_suspend_new_subscriber() {
         "unfed subscriber should stay at its default LOW forwarding layer, not be driven to audio-only/suspended"
     );
 }
+
+/// Finding #2 (resource_exhaustion) regression guard: `Registry::reap_dead` must
+/// evict a disconnected subscriber's `BandwidthEstimator` state, not just the
+/// client + detector entry. Pre-fix, `reap_dead` never called
+/// `BandwidthEstimator::reap_dead`, so the per-subscriber map grew unbounded
+/// across reconnect churn (per-room, in-memory, no persistence) toward OOM.
+#[cfg(all(feature = "kalman-bwe", feature = "test-utils"))]
+#[test]
+fn reap_dead_evicts_bwe_subscriber_state() {
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, Registry};
+    use std::time::Instant;
+
+    let mut registry = Registry::new_for_tests();
+
+    let subscriber = new_client(ClientId(950));
+    let sub_id = subscriber.id;
+    registry.insert(subscriber);
+
+    // Feed the estimator so a per-subscriber entry exists (as any real session does).
+    registry
+        .bandwidth_mut_for_tests()
+        .record_native_estimate(sub_id, 1_000_000.0);
+    assert!(
+        registry
+            .bandwidth_mut_for_tests()
+            .estimate_bps(sub_id, Instant::now())
+            .is_some(),
+        "estimator entry should exist after being fed"
+    );
+
+    // Disconnect the client so `is_alive()` returns false, then reap.
+    registry
+        .clients_mut_for_tests()
+        .iter_mut()
+        .find(|c| c.id == sub_id)
+        .expect("subscriber present")
+        .disconnect_for_tests();
+    registry.reap_dead();
+
+    assert!(
+        registry.clients().is_empty(),
+        "dead client should be reaped"
+    );
+    assert!(
+        registry
+            .bandwidth_mut_for_tests()
+            .estimate_bps(sub_id, Instant::now())
+            .is_none(),
+        "BWE subscriber state must be evicted on disconnect — else it leaks per reconnect"
+    );
+}
