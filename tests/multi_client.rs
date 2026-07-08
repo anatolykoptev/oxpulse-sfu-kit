@@ -191,8 +191,12 @@ fn propagated_audio_codec_hint_variant_exists() {
     };
 }
 
+// Exercises ONLY the `KeyEpoch` newtype's own roundtrip — the SFU does not read
+// or forward this value on the RTP path (keys are plumbed out-of-band by the app),
+// so there is no data-plane forwarding behaviour to assert here. Named to say so,
+// rather than implying data-plane coverage.
 #[test]
-fn key_epoch_accessible() {
+fn key_epoch_newtype_roundtrip() {
     use oxpulse_sfu_kit::KeyEpoch;
     assert_eq!(KeyEpoch::new(7).as_u64(), 7);
 }
