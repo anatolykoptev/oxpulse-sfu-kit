@@ -13,10 +13,12 @@
 # change bumps MINOR. Do NOT `git tag` by hand: a manual tag desyncs
 # .release-please-manifest.json.
 #
-# ONE-TIME OPERATOR SETUP (crates.io web UI, Settings → Trusted Publishing):
-#   the existing GitHub publisher's "Workflow file" must be set to
-#   `release-please.yml` (was `publish.yml`, now retired). Until then the publish
-#   job's OIDC token is rejected.
+# crates.io Trusted Publishing: this file is named `publish.yml` to match the
+# crate's existing Trusted Publisher (repo anatolykoptev/oxpulse-sfu-kit, workflow
+# publish.yml) — the OIDC subject is the workflow filename, so no crates.io change
+# is needed. The publish job runs IN THIS workflow gated on `release_created`
+# (rather than a separate tag-triggered file) because a GITHUB_TOKEN-created tag
+# does not trigger other workflows.
 
 name: Release
 
