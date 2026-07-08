@@ -1,4 +1,4 @@
-use super::PacerConfig;
+use super::{PacerConfig, PacerConfigError};
 use crate::ids::SfuRid;
 
 /// Action returned by `SubscriberPacer::update`.
@@ -64,19 +64,46 @@ impl SubscriberPacer {
     /// # }
     /// ```
     pub fn with_config(config: PacerConfig) -> Self {
-        debug_assert!(
-            config.validate().is_ok(),
-            "invalid PacerConfig: {:?}",
-            config.validate()
-        );
-        Self {
+        // Fail fast in EVERY build profile. The previous `debug_assert!` was a
+        // no-op under `cargo build --release` (the production build), so an
+        // invalid config silently reached the hot bps->layer decision path.
+        // Callers that want to handle the error instead of panicking should use
+        // [`Self::try_with_config`].
+        Self::try_with_config(config)
+            .expect("invalid PacerConfig; use SubscriberPacer::try_with_config to handle it")
+    }
+
+    /// Create a [`SubscriberPacer`] with custom thresholds, returning a
+    /// [`PacerConfigError`] instead of panicking when `config` is invalid.
+    ///
+    /// The non-panicking counterpart to [`Self::with_config`]. Validation is
+    /// enforced in every build profile (unlike the old debug-only assertion).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # #[cfg(feature = "pacer")]
+    /// # {
+    /// use oxpulse_sfu_kit::bwe::{PacerConfig, PacerConfigError, SubscriberPacer};
+    ///
+    /// let bad = PacerConfig { upgrade_streak: 0, ..PacerConfig::default() };
+    /// assert_eq!(
+    ///     SubscriberPacer::try_with_config(bad).err(),
+    ///     Some(PacerConfigError::UpgradeStreakZero)
+    /// );
+    /// assert!(SubscriberPacer::try_with_config(PacerConfig::default()).is_ok());
+    /// # }
+    /// ```
+    pub fn try_with_config(config: PacerConfig) -> Result<Self, PacerConfigError> {
+        config.validate()?;
+        Ok(Self {
             current_layer: SfuRid::LOW,
             audio_only: false,
             suspended: false,
             upgrade_streak: 0,
             suspend_streak: 0,
             config,
-        }
+        })
     }
 
     /// Feed a new egress BWE reading. Returns the action to take (if any).
@@ -576,12 +603,12 @@ mod tests {
         assert_eq!(p.update(SUSPEND_VIDEO_BPS - 1), PacerAction::SuspendVideo);
     }
     #[test]
-    #[cfg(debug_assertions)]
     #[should_panic(expected = "invalid PacerConfig")]
-    fn upgrade_streak_zero_panics_in_debug() {
+    fn upgrade_streak_zero_panics() {
         use crate::bwe::PacerConfig;
         // upgrade_streak=0 means streak(1) >= 0 is always true -> single-tick upgrade = thrash.
-        // The debug_assert in with_config must catch this.
+        // with_config must panic in EVERY profile (was debug-only), so an invalid
+        // config can never silently reach the hot path in a --release build.
         let cfg = PacerConfig {
             upgrade_streak: 0,
             ..PacerConfig::default()
@@ -590,9 +617,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
     #[should_panic(expected = "invalid PacerConfig")]
-    fn suspend_streak_zero_panics_in_debug() {
+    fn suspend_streak_zero_panics() {
         use crate::bwe::PacerConfig;
         // suspend_streak=0 means streak(1) >= 0 is always true -> instant suspend on first tick.
         let cfg = PacerConfig {
@@ -600,5 +626,29 @@ mod tests {
             ..PacerConfig::default()
         };
         let _ = SubscriberPacer::with_config(cfg);
+    }
+
+    #[test]
+    fn try_with_config_rejects_invalid_in_all_profiles() {
+        use crate::bwe::{PacerConfig, PacerConfigError};
+        // Profile-independent: unlike the old debug-only assertion, validation is
+        // enforced here in release too. This is the non-panicking path the fix adds.
+        assert_eq!(
+            SubscriberPacer::try_with_config(PacerConfig {
+                upgrade_streak: 0,
+                ..PacerConfig::default()
+            })
+            .err(),
+            Some(PacerConfigError::UpgradeStreakZero)
+        );
+        assert_eq!(
+            SubscriberPacer::try_with_config(PacerConfig {
+                suspend_streak: 0,
+                ..PacerConfig::default()
+            })
+            .err(),
+            Some(PacerConfigError::SuspendStreakZero)
+        );
+        assert!(SubscriberPacer::try_with_config(PacerConfig::default()).is_ok());
     }
 }
