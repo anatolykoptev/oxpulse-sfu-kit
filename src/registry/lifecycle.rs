@@ -29,6 +29,14 @@ impl Registry {
         #[cfg(feature = "active-speaker")]
         let detector = &mut self.detector;
         let metrics = &self.metrics;
+        // Finding #2 (resource_exhaustion): pre-borrow the estimator so the
+        // retain closure can evict its per-subscriber state in the SAME sweep
+        // as the client + detector cleanup. Without this, BandwidthEstimator's
+        // `subscribers` map grows unbounded across reconnect churn (per-room,
+        // in-memory, no persistence) toward OOM. Mirrors oxpulse-partner-edge
+        // crates/sfu/src/registry/bwe.rs, which reaps bandwidth in-sweep too.
+        #[cfg(feature = "kalman-bwe")]
+        let bandwidth = &mut self.bandwidth;
         self.clients.retain(|c| {
             let alive = c.is_alive();
             if !alive {
@@ -39,6 +47,11 @@ impl Registry {
                         detector.remove_peer(&*c.id);
                     }
                 }
+                // Evict the per-subscriber BWE state (Kalman/loss/send_times),
+                // mirroring the detector cleanup above — the already-written
+                // BandwidthEstimator::reap_dead was never called on disconnect.
+                #[cfg(feature = "kalman-bwe")]
+                bandwidth.reap_dead(c.id);
                 metrics.inc_client_disconnect();
                 metrics.dec_active_participants();
                 metrics.reap_dead_peer(*c.id);
