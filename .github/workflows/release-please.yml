@@ -1,0 +1,76 @@
+# Automated releases via release-please.
+#
+# Flow (no manual version/tag steps):
+#   1. Land conventional commits on `main` (feat:/fix:/perf:/docs:/… — breaking
+#      via `!` or a `BREAKING CHANGE:` footer).
+#   2. release-please opens/updates a "chore(main): release X.Y.Z" PR that bumps
+#      Cargo.toml + Cargo.lock + prepends CHANGELOG.md from those commits.
+#   3. Merging that PR creates the `vX.Y.Z` tag + GitHub Release, and the gated
+#      `publish` job below publishes to crates.io (crates.io Trusted Publishing /
+#      OIDC — no long-lived token).
+#
+# Versioning: 0.x pre-1.0 (bump-minor-pre-major) — feat/fix bump PATCH, a breaking
+# change bumps MINOR. Do NOT `git tag` by hand: a manual tag desyncs
+# .release-please-manifest.json.
+#
+# ONE-TIME OPERATOR SETUP (crates.io web UI, Settings → Trusted Publishing):
+#   the existing GitHub publisher's "Workflow file" must be set to
+#   `release-please.yml` (was `publish.yml`, now retired). Until then the publish
+#   job's OIDC token is rejected.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release PR / tag
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Publish to crates.io
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify Cargo.toml version matches tag
+        env:
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          TAG_VERSION="${TAG_NAME#v}"
+          CARGO_VERSION=$(grep -m1 -E '^version = ' Cargo.toml | cut -d'"' -f2)
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch - Cargo.toml=$CARGO_VERSION, tag=$TAG_VERSION"
+            exit 1
+          fi
+          echo "Version verified: $TAG_VERSION"
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish
