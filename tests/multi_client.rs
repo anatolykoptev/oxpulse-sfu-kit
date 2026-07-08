@@ -456,3 +456,57 @@ fn kalman_bwe_drives_layer_selection_via_update_pacer_layers() {
         desired
     );
 }
+
+/// Finding #1 (freeze_stall) regression guard: a freshly-joined subscriber whose
+/// `BandwidthEstimator` has never been fed (no `record_native_estimate` /
+/// `record_client_hint` / `on_twcc_feedback`) must NOT be suspended by the pacer.
+///
+/// Pre-fix, `update_pacer_layers` coerced the estimator's `None` to `0` bps via
+/// `unwrap_or(0)`; `0 < SUSPEND_VIDEO_BPS`, so after `SUSPEND_STREAK` ticks the
+/// pacer fired `SuspendVideo`, killing all video for every new subscriber within
+/// ~40ms of join — before any real estimate could be recorded.
+///
+/// Post-fix, `None` means "no estimate yet — skip driving the pacer this tick"
+/// (fail SILENT-SAFE: keep forwarding video). We drive the real production path
+/// (`update_pacer_layers`, the sole prod caller, invoked per publisher MediaData)
+/// `SUSPEND_STREAK + 1` times and assert the subscriber stays unsuspended.
+#[cfg(all(feature = "kalman-bwe", feature = "pacer", feature = "test-utils"))]
+#[test]
+fn unfed_estimator_does_not_suspend_new_subscriber() {
+    use oxpulse_sfu_kit::bwe::SUSPEND_STREAK;
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, Registry, SfuRid};
+
+    let mut registry = Registry::new_for_tests();
+
+    // Publisher (idx 0).
+    let publisher = new_client(ClientId(900));
+    let pub_id = publisher.id;
+    registry.insert(publisher);
+
+    // Subscriber (idx 1) — its BandwidthEstimator is deliberately NEVER fed.
+    let subscriber = new_client(ClientId(901));
+    let sub_id = subscriber.id;
+    registry.insert(subscriber);
+
+    // Drive the pacer path more than SUSPEND_STREAK times, exactly as production
+    // does per inbound publisher MediaData (~20ms cadence).
+    for _ in 0..(SUSPEND_STREAK + 1) {
+        registry.update_pacer_layers(pub_id);
+    }
+
+    let sub = registry
+        .clients()
+        .iter()
+        .find(|c| c.id == sub_id)
+        .expect("subscriber present");
+    assert!(
+        !sub.is_suspended(),
+        "unfed subscriber must NOT be suspended — fail-safe keeps forwarding video"
+    );
+    assert_eq!(
+        sub.desired_layer(),
+        SfuRid::LOW,
+        "unfed subscriber should stay at its default LOW forwarding layer, not be driven to audio-only/suspended"
+    );
+}
