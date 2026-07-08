@@ -149,6 +149,15 @@ impl Client {
         let Some(pt) = writer.match_params(params) else {
             return;
         };
+        // Re-attach the SFrame key epoch (KID) RTP header extension so a
+        // subscriber can select the right decryption key. str0m only emits it
+        // when the extension is registered + negotiated (see crate::sframe);
+        // otherwise `key_epoch` is None and this is a no-op. The SFU never
+        // inspects the encrypted payload.
+        let writer = match data.key_epoch() {
+            Some(kid) => writer.user_extension_value(kid),
+            None => writer,
+        };
         // Observe end-to-end forwarding latency: time from publisher receipt to
         // subscriber str0m handoff. Uses the packet's own network_time so the
         // measurement is independent of when handle_media_data_out was called.

@@ -159,7 +159,7 @@ pub use raw::{rtc_config, RawRtc, RawRtcConfig};
 pub use registry::Registry;
 pub use rtc::{SfuRtc, SfuRtcBuilder};
 pub use rtcp_stats::PeerRtcpStats;
-pub use sframe::KeyEpoch;
+pub use sframe::{sframe_key_id_extension, KeyEpoch, KeyEpochSerializer};
 pub use udp_loop::{bind, run_udp_loop, serve, serve_socket};
 #[cfg(feature = "vfm")]
 #[cfg_attr(docsrs, doc(cfg(feature = "vfm")))]

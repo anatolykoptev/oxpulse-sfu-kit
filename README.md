@@ -103,13 +103,31 @@ changes required. Signal DRED capability with `Propagated::AudioCodecHint`.
 
 The kit forwards RTP payloads opaquely, so SFrame (RFC 9605) ciphertext — including
 the in-payload SFrame header that carries the key id (KID) — passes through the SFU
-unchanged. The SFU does **not** parse or re-attach any key-id RTP *header extension*:
-if your clients negotiate one, forwarding the key epoch is not the SFU's job. Plumb it
-out-of-band instead — e.g. a dedicated DataChannel or your signalling layer (this is
-what the production edge does). The `KeyEpoch` newtype in `crate::sframe` is a
-convenience type for that app-side epoch bookkeeping; it is not wired into the
-forwarding path. Key distribution (MLS RFC 9420) is your signalling layer's
-responsibility.
+unchanged. The SFU never decrypts or inspects the payload.
+
+If your clients also signal the key epoch (KID) in a dedicated **RTP header
+extension**, the SFU forwards that too: the KID is captured off each inbound packet
+and re-attached to every fanned-out packet, so a subscriber can pick the right
+decryption key without waiting for the in-payload header.
+
+Like every str0m header extension, it must be registered on the `Rtc` and negotiated
+in SDP. Because the SFrame-KID extension has no standard URI, you choose the URI (it
+must match your clients' `a=extmap`). Register `sframe::sframe_key_id_extension(uri)`
+on the raw config for **every** peer:
+
+```rust,no_run
+use oxpulse_sfu_kit::{raw, sframe, SfuRtc};
+
+const SFRAME_KID_URI: &str = "urn:example:rtp-hdrext:sframe-kid";
+
+let cfg = raw::rtc_config().set_extension(8, sframe::sframe_key_id_extension(SFRAME_KID_URI));
+let rtc = SfuRtc::from_raw(cfg.build(std::time::Instant::now()));
+```
+
+`sframe_key_id_extension` uses `KeyEpochSerializer` (minimal big-endian KID wire
+format); if your clients encode the KID differently, supply your own
+`ExtensionSerializer` that parses into / writes from a `KeyEpoch` user value. Key
+distribution (MLS RFC 9420) remains your signalling layer's responsibility.
 
 ## Not included (by design)
 
