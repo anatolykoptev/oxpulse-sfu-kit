@@ -42,6 +42,15 @@
 //! `KeyEpoch` **type**, not on the wire bytes.
 //!
 //! Key distribution (e.g. MLS, RFC 9420) remains your signalling layer's job.
+//!
+//! # Trust
+//!
+//! The forwarded header-extension KID is a **non-authoritative hint**. The SFU
+//! is untrusted and never validates it; a malicious or buggy publisher can set
+//! any value, including one that disagrees with the KID in the opaque
+//! in-payload SFrame header. Receivers MUST still select the key from the
+//! in-payload header and let the AEAD fail closed on a mismatch — a wrong hint
+//! costs at most a dropped frame, never confidentiality.
 
 use str0m::rtp::{Extension, ExtensionSerializer, ExtensionValues};
 
@@ -81,7 +90,9 @@ impl KeyEpoch {
 /// writes from a [`KeyEpoch`] user value.
 ///
 /// The serializer applies to **both** audio and video media (SFrame protects
-/// either), and never uses the two-byte extension form (the value is ≤ 8 bytes).
+/// either). Its value is ≤ 8 bytes, so it never *requires* the two-byte
+/// extension form (str0m may still pick that form globally if another
+/// registered extension needs it — a full `u8` length encodes 8 bytes fine).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct KeyEpochSerializer;
 
