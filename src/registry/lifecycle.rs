@@ -42,8 +42,11 @@ impl Registry {
             if !alive {
                 #[cfg(feature = "active-speaker")]
                 {
-                    // Only remove if it was registered — relay clients are not in the detector.
-                    if !c.is_relay() {
+                    // Remove exactly what insert registered. Use the stored flag,
+                    // NOT a live is_relay() re-check: if set_origin(Relay) was called
+                    // after insert, is_relay() would now read true and we'd skip a
+                    // peer that WAS added as local — leaking it in the detector map.
+                    if c.in_speaker_detector {
                         detector.remove_peer(&*c.id);
                     }
                 }

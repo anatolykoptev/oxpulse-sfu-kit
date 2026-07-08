@@ -30,6 +30,8 @@ impl Client {
         Self {
             id,
             origin: crate::origin::ClientOrigin::Local,
+            #[cfg(feature = "active-speaker")]
+            in_speaker_detector: false,
             rtc: rtc.0,
             tracks_in: Vec::new(),
             tracks_out: Vec::new(),
