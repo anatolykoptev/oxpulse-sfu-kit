@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.8](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.11.7...v0.11.8) (2026-07-08)
+
+
+### Added
+
+* expose GoogCC per-subscriber coverage as a queryable signal (silent_downgrade) ([#35](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/35)) ([24a87bc](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/24a87bcbb353aaf9624470b94baafbbe02f46952))
+
+
+### Fixed
+
+* enforce PacerConfig::validate() in all build profiles (config_drift) ([#32](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/32)) ([946756a](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/946756aa996b55d0b1d94d756ba63772ce0547ed))
+* evict BWE subscriber state on disconnect (resource_exhaustion) ([#30](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/30)) ([f319199](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/f319199d75ef5ae634908b10bbf4ecc4593b808f))
+* fail-safe pacer when BWE estimator is unfed (freeze_stall) ([#29](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/29)) ([800bf33](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/800bf3349da9f1f95f76d80dcfd826fa29bb6255))
+* keep detector add/remove symmetric across late set_origin (config_drift) ([#34](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/34)) ([113f2e8](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/113f2e86b192e5553fe6d0549e8d13ae6961779e))
+
+
+### Performance
+
+* de-quadratic update_pacer_layers hot path (resource_exhaustion) ([#33](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/33)) ([76cb8d8](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/76cb8d8fa394e5552b327ddbe83cf201ecffcd92))
+
+
+### Documentation
+
+* correct SFrame KeyEpoch forwarding contract; rename synthetic-green test ([#31](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/31)) ([bc58094](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/bc580949fec1e6ed942a45e95b9e4b37ff2cd634))
+
 ## [0.11.7] - 2026-05-19
 
 ### Performance
