@@ -259,24 +259,24 @@ impl Registry {
             &publisher_rids
         };
 
-        let subscriber_ids: Vec<crate::propagate::ClientId> = self
-            .clients
-            .iter()
-            .filter(|c| c.id != origin)
-            .map(|c| c.id)
-            .collect();
+        // Single O(clients) pass. Previously this collected a `subscriber_ids`
+        // Vec and then did `self.clients.iter_mut().find(id)` per subscriber — an
+        // O(N^2) scan plus two heap allocations, run once per forwarded RTP packet.
+        // Iterate clients directly instead (mirrors oxpulse-partner-edge
+        // registry/bwe.rs), reading self.bandwidth / self.metrics / self.to_propagate
+        // as disjoint borrows alongside the &mut self.clients iterator.
+        use crate::bwe::PacerAction;
+        for client in self.clients.iter_mut() {
+            if client.id == origin {
+                continue;
+            }
+            let sub_id = client.id;
 
-        for sub_id in subscriber_ids {
-            // Finding #1 (freeze_stall) fail-safe: `estimate_bps` returns `None`
-            // until the subscriber's estimator has been fed. The old
-            // `.unwrap_or(0)` coerced that to 0 bps, which is below
-            // `SUSPEND_VIDEO_BPS`, so a freshly-joined subscriber was driven to
-            // `SuspendVideo` within `SUSPEND_STREAK` ticks (~40ms) before any real
-            // estimate existed. Treat "no estimate yet" as "do not drive the pacer
-            // this tick" so an unfed estimator fails silent-safe (keep forwarding)
-            // instead of suspend-everyone. Mirrors oxpulse-partner-edge
-            // crates/sfu/src/client/fanout.rs `pacer_select_layer`, which returns
-            // the current layer on `None` without advancing the FSM.
+            // Finding #1 (freeze_stall) fail-safe: an unfed estimator returns None.
+            // Do not drive the pacer this tick (keep forwarding) instead of coercing
+            // to 0 bps, which would SuspendVideo a freshly-joined subscriber. Mirrors
+            // partner-edge pacer_select_layer's None handling. `self.bandwidth` is a
+            // disjoint field from the `self.clients` iterator, so this borrows cleanly.
             let Some(budget) = self.bandwidth.estimate_bps(sub_id, now) else {
                 continue;
             };
@@ -285,39 +285,36 @@ impl Registry {
             #[cfg(feature = "metrics-prometheus")]
             self.metrics.update_peer_bwe(*sub_id, budget);
 
-            if let Some(client) = self.clients.iter_mut().find(|c| c.id == sub_id) {
-                use crate::bwe::PacerAction;
-                match client.drive_pacer(budget) {
-                    PacerAction::GoAudioOnly => {
-                        self.to_propagate.push_back(Propagated::AudioOnlyMode {
-                            peer_id: sub_id,
-                            audio_only: true,
-                        });
-                    }
-                    PacerAction::RestoreVideo => {
-                        self.to_propagate.push_back(Propagated::AudioOnlyMode {
-                            peer_id: sub_id,
-                            audio_only: false,
-                        });
-                    }
-                    PacerAction::SuspendVideo => {
-                        client.set_suspended(true);
-                        self.metrics.inc_suspend_video("enter");
-                        self.to_propagate.push_back(Propagated::SuspendVideo {
-                            peer_id: sub_id,
-                            suspended: true,
-                        });
-                    }
-                    PacerAction::RestoreAudio => {
-                        client.set_suspended(false);
-                        self.metrics.inc_suspend_video("exit");
-                        self.to_propagate.push_back(Propagated::SuspendVideo {
-                            peer_id: sub_id,
-                            suspended: false,
-                        });
-                    }
-                    PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
+            match client.drive_pacer(budget) {
+                PacerAction::GoAudioOnly => {
+                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                        peer_id: sub_id,
+                        audio_only: true,
+                    });
                 }
+                PacerAction::RestoreVideo => {
+                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
+                        peer_id: sub_id,
+                        audio_only: false,
+                    });
+                }
+                PacerAction::SuspendVideo => {
+                    client.set_suspended(true);
+                    self.metrics.inc_suspend_video("enter");
+                    self.to_propagate.push_back(Propagated::SuspendVideo {
+                        peer_id: sub_id,
+                        suspended: true,
+                    });
+                }
+                PacerAction::RestoreAudio => {
+                    client.set_suspended(false);
+                    self.metrics.inc_suspend_video("exit");
+                    self.to_propagate.push_back(Propagated::SuspendVideo {
+                        peer_id: sub_id,
+                        suspended: false,
+                    });
+                }
+                PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
             }
         }
     }
