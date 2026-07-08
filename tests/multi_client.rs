@@ -562,3 +562,113 @@ fn reap_dead_evicts_bwe_subscriber_state() {
         "BWE subscriber state must be evicted on disconnect — else it leaks per reconnect"
     );
 }
+
+/// Finding #10 (config_drift) regression guard: `reap_dead` must remove exactly the
+/// detector entry that `insert` added, even when `set_origin(Relay)` is (incorrectly)
+/// called AFTER insert. Pre-fix, insert added the client as local while reap
+/// re-checked `is_relay()` live — which now read true — and skipped removal, leaking
+/// the peer in the dominant-speaker detector for the room's lifetime.
+#[cfg(feature = "active-speaker")]
+#[test]
+fn reap_removes_detector_entry_when_origin_set_after_insert() {
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin, Registry};
+
+    let mut registry = Registry::new_for_tests();
+    let client = new_client(ClientId(970));
+    let cid = *client.id;
+
+    // Reverse of the documented order: insert BEFORE set_origin(Relay).
+    registry.insert(client);
+    registry
+        .clients_mut_for_tests()
+        .iter_mut()
+        .find(|c| *c.id == cid)
+        .expect("client present")
+        .set_origin(ClientOrigin::RelayFromSfu("edge-x".into()));
+
+    assert!(
+        registry
+            .peer_audio_scores()
+            .iter()
+            .any(|(pid, ..)| *pid == cid),
+        "client should have been registered in the detector at insert (as local)"
+    );
+
+    // Disconnect + reap.
+    registry
+        .clients_mut_for_tests()
+        .iter_mut()
+        .find(|c| *c.id == cid)
+        .expect("client present")
+        .disconnect_for_tests();
+    registry.reap_dead();
+
+    assert!(
+        registry.clients().is_empty(),
+        "dead client should be reaped"
+    );
+    assert!(
+        !registry
+            .peer_audio_scores()
+            .iter()
+            .any(|(pid, ..)| *pid == cid),
+        "detector entry must be removed on reap even though origin was set to relay after insert"
+    );
+}
+
+/// Mirror of the above (the other drift direction): a client inserted as a RELAY
+/// (never registered in the detector) whose origin is later flipped to Local must
+/// NOT be pulled into the detector by `record_audio_level`. `detector.record_level`
+/// implicitly registers unknown peers, so gating `record_audio_level` on a live
+/// `is_relay()` (instead of the captured `in_speaker_detector`) would leak the peer.
+#[cfg(feature = "active-speaker")]
+#[test]
+fn record_audio_level_ignores_peer_not_registered_at_insert() {
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, ClientOrigin, Registry};
+    use std::time::Instant;
+
+    let mut registry = Registry::new_for_tests();
+
+    // Insert as a relay (set_origin BEFORE insert) → in_speaker_detector = false,
+    // never add_peer'd.
+    let mut client = new_client(ClientId(960));
+    client.set_origin(ClientOrigin::RelayFromSfu("edge-y".into()));
+    let cid = *client.id;
+    registry.insert(client);
+
+    // Contract violation: flip to Local AFTER insert.
+    registry
+        .clients_mut_for_tests()
+        .iter_mut()
+        .find(|c| *c.id == cid)
+        .expect("client present")
+        .set_origin(ClientOrigin::Local);
+
+    // Feeding a level must NOT implicitly register this unregistered peer.
+    registry.record_audio_level(cid, 10, Instant::now());
+    assert!(
+        !registry
+            .peer_audio_scores()
+            .iter()
+            .any(|(pid, ..)| *pid == cid),
+        "record_audio_level must ignore a peer not registered in the detector at insert"
+    );
+
+    // And reap stays leak-free (nothing was ever added).
+    registry
+        .clients_mut_for_tests()
+        .iter_mut()
+        .find(|c| *c.id == cid)
+        .expect("client present")
+        .disconnect_for_tests();
+    registry.reap_dead();
+    assert!(
+        !registry
+            .peer_audio_scores()
+            .iter()
+            .any(|(pid, ..)| *pid == cid),
+        "no detector entry should exist for a relay-at-insert peer"
+    );
+}

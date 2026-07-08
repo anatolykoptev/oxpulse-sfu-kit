@@ -48,6 +48,14 @@ pub struct Client {
     pub id: ClientId,
     /// Whether this client is a local peer or an upstream SFU relay.
     pub(crate) origin: crate::origin::ClientOrigin,
+    /// Whether this client was registered with the dominant-speaker detector at
+    /// insert time. Captured once (from `!is_relay()`) by `Registry::insert` so
+    /// reap removes exactly what insert added, independent of any later
+    /// `set_origin` call. Without it, a relay whose origin is set AFTER insert is
+    /// added (looked local at insert) but never removed (looks relay at reap) — a
+    /// permanent detector-map leak.
+    #[cfg(feature = "active-speaker")]
+    pub(crate) in_speaker_detector: bool,
     pub(crate) rtc: Rtc,
     pub(crate) tracks_in: Vec<TrackInEntry>,
     pub(crate) tracks_out: Vec<TrackOut>,

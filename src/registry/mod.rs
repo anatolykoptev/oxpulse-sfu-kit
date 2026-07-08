@@ -110,8 +110,13 @@ impl Registry {
         #[cfg(feature = "active-speaker")]
         {
             // Relay clients relay another room's audio — their levels are not
-            // meaningful for this room's dominant-speaker election.
-            if !client.is_relay() {
+            // meaningful for this room's dominant-speaker election. Capture the
+            // registration decision ONCE, here, and store it on the client so
+            // reap_dead removes exactly what we added — even if `set_origin` is
+            // (incorrectly) called after insert.
+            let register = !client.is_relay();
+            client.in_speaker_detector = register;
+            if register {
                 let now_ms = self.now_ms();
                 self.detector.add_peer(*client.id, now_ms);
             }
@@ -154,16 +159,23 @@ impl Registry {
     /// audio RTP packet received from `peer_id` after parsing the audio-level
     /// RTP header extension. Only available with the `active-speaker` feature.
     ///
-    /// Levels for relay clients (`Client::is_relay()`) are silently ignored —
-    /// relay audio belongs to the upstream room's election, not this one.
+    /// Levels for peers not registered with the detector at insert
+    /// (`Client::in_speaker_detector` — relays, or clients inserted before their
+    /// origin was set) are silently ignored — that audio does not belong to this
+    /// room's election.
     #[cfg(feature = "active-speaker")]
     #[cfg_attr(docsrs, doc(cfg(feature = "active-speaker")))]
     pub fn record_audio_level(&mut self, peer_id: u64, level_raw: u8, now: Instant) {
-        // Relay clients are excluded from speaker election; ignore their audio levels.
-        if self
+        // Gate on the SAME captured decision as insert/reap (`in_speaker_detector`),
+        // NOT a live `is_relay()`. `detector.record_level` implicitly registers an
+        // unknown peer, so recording a level for a peer that insert never added would
+        // leak it in the detector map (reap only removes what insert registered) — the
+        // mirror of the set_origin-after-insert bug this field fixes. Record only for
+        // peers actually registered at insert.
+        if !self
             .clients
             .iter()
-            .any(|c| *c.id == peer_id && c.is_relay())
+            .any(|c| *c.id == peer_id && c.in_speaker_detector)
         {
             return;
         }
