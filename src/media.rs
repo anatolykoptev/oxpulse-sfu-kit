@@ -153,6 +153,36 @@ impl SfuMediaPayload {
         self.key_epoch
     }
 
+    /// Whether this packet's negotiated codec is video rather than audio.
+    ///
+    /// Gates [`Self::rtp_send_ms`]'s use as a GoogCC delay-trend feed:
+    /// audio and video RTP clocks run at different rates (e.g. 48 kHz Opus
+    /// vs 90 kHz VP8/H264/AV1), so mixing them into one trendline sample
+    /// would compare unrelated timings. `googcc-bwe`-only; see
+    /// [`crate::bwe::googcc`].
+    #[cfg(feature = "googcc-bwe")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+    #[must_use]
+    pub fn is_video(&self) -> bool {
+        self.params.spec().codec.is_video()
+    }
+
+    /// RTP-timestamp-derived send time, in milliseconds.
+    ///
+    /// Converts this packet's raw RTP timestamp via its own negotiated clock
+    /// rate (`MediaTime::as_seconds`) — no `record_send_time` tracking or
+    /// TWCC round-trip required, since the timestamp is already carried on
+    /// every packet. Feeds
+    /// [`GoogCcEstimator::on_receive`][crate::bwe::googcc::GoogCcEstimator::on_receive]'s
+    /// `send_ms` parameter directly. Meaningful only when [`Self::is_video`]
+    /// is true (see that method's docs). `googcc-bwe`-only.
+    #[cfg(feature = "googcc-bwe")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
+    #[must_use]
+    pub fn rtp_send_ms(&self) -> f64 {
+        self.time.as_seconds() * 1000.0
+    }
+
     /// Borrow the raw parts needed by str0m's fanout write path.
     ///
     /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
@@ -220,6 +250,98 @@ mod tests {
             let wrapped = SfuMediaKind::from_str0m(k);
             assert_eq!(wrapped.to_str0m(), k);
         }
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    fn payload_with_codec(
+        codec: str0m::format::Codec,
+        clock_rate: str0m::media::Frequency,
+        rtp_ts: u64,
+    ) -> SfuMediaPayload {
+        use str0m::format::{CodecSpec, FormatParams, PayloadParams};
+        use str0m::media::{MediaData, MediaTime, Mid, Pt};
+        use str0m::rtp::{ExtensionValues, SeqNo};
+
+        let pt = Pt::from(96u8);
+        let seq: SeqNo = 0u64.into();
+        let params = PayloadParams::new(
+            pt,
+            None,
+            CodecSpec {
+                codec,
+                clock_rate,
+                channels: None,
+                format: FormatParams::default(),
+            },
+        );
+        SfuMediaPayload::from_str0m(MediaData {
+            mid: Mid::from("m0"),
+            pt,
+            rid: None,
+            params,
+            time: MediaTime::new(rtp_ts, clock_rate),
+            network_time: Instant::now(),
+            seq_range: seq..=seq,
+            data: vec![0u8; 4].into(),
+            ext_vals: ExtensionValues::default(),
+            codec_extra: str0m::format::CodecExtra::None,
+            contiguous: true,
+            last_sender_info: None,
+            audio_start_of_talk_spurt: false,
+        })
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn is_video_true_for_video_codec() {
+        let payload = payload_with_codec(
+            str0m::format::Codec::Vp8,
+            str0m::media::Frequency::NINETY_KHZ,
+            90_000,
+        );
+        assert!(payload.is_video());
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn is_video_false_for_audio_codec() {
+        let payload = payload_with_codec(
+            str0m::format::Codec::Opus,
+            str0m::media::Frequency::FORTY_EIGHT_KHZ,
+            48_000,
+        );
+        assert!(!payload.is_video());
+    }
+
+    #[cfg(feature = "googcc-bwe")]
+    #[test]
+    fn rtp_send_ms_converts_via_the_packets_own_clock_rate() {
+        // 90 kHz clock, RTP timestamp = 90_000 ticks -> exactly 1000 ms,
+        // regardless of any hardcoded assumption about the clock rate.
+        let video = payload_with_codec(
+            str0m::format::Codec::Vp8,
+            str0m::media::Frequency::NINETY_KHZ,
+            90_000,
+        );
+        assert!(
+            (video.rtp_send_ms() - 1000.0).abs() < 1e-6,
+            "expected 1000ms at 90kHz for 90_000 ticks, got {}",
+            video.rtp_send_ms()
+        );
+
+        // 48 kHz clock, same tick count -> a different ms value at the same
+        // raw ticks, proving the conversion is clock-rate-aware (not a
+        // hardcoded /90.0 division).
+        let audio = payload_with_codec(
+            str0m::format::Codec::Opus,
+            str0m::media::Frequency::FORTY_EIGHT_KHZ,
+            48_000,
+        );
+        assert!(
+            (audio.rtp_send_ms() - 1000.0).abs() < 1e-6,
+            "expected 1000ms at 48kHz for 48_000 ticks, got {}",
+            audio.rtp_send_ms()
+        );
     }
 
     #[cfg(feature = "av1-dd")]
