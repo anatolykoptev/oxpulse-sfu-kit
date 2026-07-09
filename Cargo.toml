@@ -37,7 +37,7 @@ vfm             = []
 test-utils      = []
 
 [dependencies]
-str0m = "0.18"
+str0m = "0.21"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
 tracing = "0.1"
 anyhow = "1"

@@ -1,8 +1,10 @@
 //! Media payload wrapper over `str0m::media::MediaData`.
 //!
-//! Owned-bytes payload for inter-peer fanout. Construction from `str0m`
-//! is zero-alloc via `mem::take` on the inner `Vec<u8>`.
+//! Refcounted-bytes payload for inter-peer fanout. Construction from `str0m`
+//! moves the inner `Arc<[u8]>`; fanout then hands each subscriber an
+//! `Arc::clone` (a refcount bump), never a byte copy of the payload.
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use str0m::format::PayloadParams;
@@ -47,7 +49,7 @@ pub struct SfuMediaPayload {
     mid: SfuMid,
     pt: SfuPt,
     rid: Option<SfuRid>,
-    data: Vec<u8>,
+    data: Arc<[u8]>,
     network_time: Instant,
     contiguous: bool,
     /// RTP timestamp — required by str0m's writer at the fanout write site.
@@ -151,19 +153,24 @@ impl SfuMediaPayload {
         self.key_epoch
     }
 
-    /// Clone the raw parts needed by str0m's fanout write path.
+    /// Borrow the raw parts needed by str0m's fanout write path.
     ///
     /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
-    /// are str0m-internal. Used only inside `client::fanout`. Takes `&self` so
-    /// the fanout loop can hold `&Propagated` across multiple clients.
-    pub(crate) fn clone_write_parts(
+    /// are str0m-internal. The payload is an `Arc::clone` — a refcount bump, not
+    /// a byte copy — so fanning one inbound frame out to N subscribers costs N
+    /// refcount increments instead of N `Vec<u8>` deep copies. str0m's
+    /// `Writer::write` takes `impl Into<Arc<[u8]>>`, so the returned `Arc<[u8]>`
+    /// flows through as an identity `Into` with no re-allocation (ADR-S2). Used
+    /// only inside `client::fanout`. Takes `&self` so the fanout loop can hold
+    /// `&Propagated` across multiple clients.
+    pub(crate) fn write_parts(
         &self,
     ) -> (
         str0m::media::Pt,
         Instant,
         MediaTime,
         Option<str0m::media::Rid>,
-        Vec<u8>,
+        Arc<[u8]>,
         PayloadParams,
     ) {
         (
@@ -171,17 +178,17 @@ impl SfuMediaPayload {
             self.network_time,
             self.time,
             self.rid.map(|r| r.to_str0m()),
-            self.data.clone(),
+            Arc::clone(&self.data),
             self.params,
         )
     }
 
-    pub(crate) fn from_str0m(mut data: str0m::media::MediaData) -> Self {
+    pub(crate) fn from_str0m(data: str0m::media::MediaData) -> Self {
         Self {
             mid: SfuMid::from_str0m(data.mid),
             pt: SfuPt::from_str0m(data.pt),
             rid: data.rid.map(SfuRid::from_str0m),
-            data: std::mem::take(&mut data.data),
+            data: data.data,
             network_time: data.network_time,
             contiguous: data.contiguous,
             time: data.time,
