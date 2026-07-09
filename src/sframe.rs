@@ -37,7 +37,7 @@
 //!
 //! [`sframe_key_id_extension`] uses [`KeyEpochSerializer`], a reference wire
 //! format (see its docs). If your clients encode the KID differently, supply
-//! your own [`ExtensionSerializer`][str0m::rtp::ExtensionSerializer] that parses
+//! your own [`ExtensionSerializer`] that parses
 //! into / writes from a [`KeyEpoch`] user value — the fanout path keys on the
 //! `KeyEpoch` **type**, not on the wire bytes.
 //!

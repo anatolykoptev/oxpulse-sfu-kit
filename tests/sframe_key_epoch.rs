@@ -62,7 +62,11 @@ fn key_epoch_survives_fanout() {
     let prop = Propagated::MediaData(ClientId(40), payload);
     registry.fanout_for_tests(&prop);
 
-    assert_eq!(registry.delivered_media_count(0), 0, "A is origin — skipped");
+    assert_eq!(
+        registry.delivered_media_count(0),
+        0,
+        "A is origin — skipped"
+    );
     assert_eq!(
         registry.delivered_media_count(1),
         1,
