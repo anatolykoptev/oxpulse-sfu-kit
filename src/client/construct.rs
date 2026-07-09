@@ -50,6 +50,8 @@ impl Client {
             pacer: crate::bwe::SubscriberPacer::new(),
             #[cfg(feature = "pacer")]
             suspended: false,
+            #[cfg(all(feature = "pacer", feature = "kalman-bwe"))]
+            last_pacer_drive: None,
             #[cfg(feature = "av1-dd")]
             max_temporal_layer: u8::MAX, // default: forward all temporal layers
             #[cfg(feature = "vfm")]
