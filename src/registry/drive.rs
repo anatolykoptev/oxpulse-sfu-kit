@@ -11,6 +11,55 @@ use crate::propagate::{ClientId, Propagated};
 
 use super::Registry;
 
+/// Pure dispatch on a [`crate::bwe::PacerAction`]: derives the `Propagated`
+/// event to enqueue (if any) and whether the client's `suspended` flag
+/// should change, with no side effects of its own.
+///
+/// The two call sites ([`Registry::poll_all`] and
+/// [`Registry::update_pacer_layers`]) apply the returned effect: enqueueing
+/// the event on `to_propagate`, and — when `suspend` is `Some` — calling
+/// `client.set_suspended` plus bumping the matching `inc_suspend_video`
+/// metric. Those steps stay in the caller because they mutate `Client`/
+/// `SfuMetrics` state, which this function does not touch.
+#[cfg(feature = "pacer")]
+fn apply_pacer_action(
+    action: crate::bwe::PacerAction,
+    peer_id: ClientId,
+) -> (Option<Propagated>, Option<bool>) {
+    use crate::bwe::PacerAction;
+    match action {
+        PacerAction::GoAudioOnly => (
+            Some(Propagated::AudioOnlyMode {
+                peer_id,
+                audio_only: true,
+            }),
+            None,
+        ),
+        PacerAction::RestoreVideo => (
+            Some(Propagated::AudioOnlyMode {
+                peer_id,
+                audio_only: false,
+            }),
+            None,
+        ),
+        PacerAction::SuspendVideo => (
+            Some(Propagated::SuspendVideo {
+                peer_id,
+                suspended: true,
+            }),
+            Some(true),
+        ),
+        PacerAction::RestoreAudio => (
+            Some(Propagated::SuspendVideo {
+                peer_id,
+                suspended: false,
+            }),
+            Some(false),
+        ),
+        PacerAction::ChangeLayer(_) | PacerAction::NoChange => (None, None),
+    }
+}
+
 impl Registry {
     /// Poll every client until each returns a `Timeout`, queuing propagated events.
     ///
@@ -39,37 +88,18 @@ impl Registry {
                         });
                         #[cfg(feature = "pacer")]
                         {
-                            use crate::bwe::PacerAction;
-                            match client.drive_pacer(estimate.bps) {
-                                PacerAction::GoAudioOnly => {
-                                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
-                                        peer_id,
-                                        audio_only: true,
-                                    });
-                                }
-                                PacerAction::RestoreVideo => {
-                                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
-                                        peer_id,
-                                        audio_only: false,
-                                    });
-                                }
-                                PacerAction::SuspendVideo => {
-                                    client.set_suspended(true);
-                                    self.metrics.inc_suspend_video("enter");
-                                    self.to_propagate.push_back(Propagated::SuspendVideo {
-                                        peer_id,
-                                        suspended: true,
-                                    });
-                                }
-                                PacerAction::RestoreAudio => {
-                                    client.set_suspended(false);
-                                    self.metrics.inc_suspend_video("exit");
-                                    self.to_propagate.push_back(Propagated::SuspendVideo {
-                                        peer_id,
-                                        suspended: false,
-                                    });
-                                }
-                                PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
+                            let (event, suspend) =
+                                apply_pacer_action(client.drive_pacer(estimate.bps), peer_id);
+                            if let Some(suspended) = suspend {
+                                client.set_suspended(suspended);
+                                self.metrics.inc_suspend_video(if suspended {
+                                    "enter"
+                                } else {
+                                    "exit"
+                                });
+                            }
+                            if let Some(event) = event {
+                                self.to_propagate.push_back(event);
                             }
                         }
                     }
@@ -225,6 +255,84 @@ impl Registry {
     }
 }
 
+#[cfg(all(test, feature = "pacer"))]
+mod tests {
+    use super::*;
+    use crate::bwe::PacerAction;
+
+    const PEER: ClientId = ClientId(7);
+
+    #[test]
+    fn go_audio_only_emits_audio_only_mode_true_no_suspend_change() {
+        let (event, suspend) = apply_pacer_action(PacerAction::GoAudioOnly, PEER);
+        match event {
+            Some(Propagated::AudioOnlyMode {
+                peer_id,
+                audio_only,
+            }) => {
+                assert_eq!(peer_id, PEER);
+                assert!(audio_only);
+            }
+            other => panic!("expected AudioOnlyMode, got {other:?}"),
+        }
+        assert_eq!(suspend, None);
+    }
+
+    #[test]
+    fn restore_video_emits_audio_only_mode_false_no_suspend_change() {
+        let (event, suspend) = apply_pacer_action(PacerAction::RestoreVideo, PEER);
+        match event {
+            Some(Propagated::AudioOnlyMode {
+                peer_id,
+                audio_only,
+            }) => {
+                assert_eq!(peer_id, PEER);
+                assert!(!audio_only);
+            }
+            other => panic!("expected AudioOnlyMode, got {other:?}"),
+        }
+        assert_eq!(suspend, None);
+    }
+
+    #[test]
+    fn suspend_video_emits_suspend_video_true_and_suspend_change_true() {
+        let (event, suspend) = apply_pacer_action(PacerAction::SuspendVideo, PEER);
+        match event {
+            Some(Propagated::SuspendVideo { peer_id, suspended }) => {
+                assert_eq!(peer_id, PEER);
+                assert!(suspended);
+            }
+            other => panic!("expected SuspendVideo, got {other:?}"),
+        }
+        assert_eq!(suspend, Some(true));
+    }
+
+    #[test]
+    fn restore_audio_emits_suspend_video_false_and_suspend_change_false() {
+        let (event, suspend) = apply_pacer_action(PacerAction::RestoreAudio, PEER);
+        match event {
+            Some(Propagated::SuspendVideo { peer_id, suspended }) => {
+                assert_eq!(peer_id, PEER);
+                assert!(!suspended);
+            }
+            other => panic!("expected SuspendVideo, got {other:?}"),
+        }
+        assert_eq!(suspend, Some(false));
+    }
+
+    #[test]
+    fn change_layer_and_no_change_emit_nothing() {
+        let (event, suspend) =
+            apply_pacer_action(PacerAction::ChangeLayer(crate::ids::SfuRid::MEDIUM), PEER);
+        assert!(event.is_none());
+        assert_eq!(suspend, None);
+
+        let (event, suspend) = apply_pacer_action(PacerAction::NoChange, PEER);
+        assert!(event.is_none());
+        assert_eq!(suspend, None);
+    }
+}
+
 /// Default simulcast ladder used when the publisher has not yet emitted active RIDs.
 #[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
 const DEFAULT_SIMULCAST_LADDER: &[crate::ids::SfuRid] = &[
@@ -265,7 +373,6 @@ impl Registry {
         // Iterate clients directly instead (mirrors oxpulse-partner-edge
         // registry/bwe.rs), reading self.bandwidth / self.metrics / self.to_propagate
         // as disjoint borrows alongside the &mut self.clients iterator.
-        use crate::bwe::PacerAction;
         for client in self.clients.iter_mut() {
             if client.id == origin {
                 continue;
@@ -285,36 +392,14 @@ impl Registry {
             #[cfg(feature = "metrics-prometheus")]
             self.metrics.update_peer_bwe(*sub_id, budget);
 
-            match client.drive_pacer(budget) {
-                PacerAction::GoAudioOnly => {
-                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
-                        peer_id: sub_id,
-                        audio_only: true,
-                    });
-                }
-                PacerAction::RestoreVideo => {
-                    self.to_propagate.push_back(Propagated::AudioOnlyMode {
-                        peer_id: sub_id,
-                        audio_only: false,
-                    });
-                }
-                PacerAction::SuspendVideo => {
-                    client.set_suspended(true);
-                    self.metrics.inc_suspend_video("enter");
-                    self.to_propagate.push_back(Propagated::SuspendVideo {
-                        peer_id: sub_id,
-                        suspended: true,
-                    });
-                }
-                PacerAction::RestoreAudio => {
-                    client.set_suspended(false);
-                    self.metrics.inc_suspend_video("exit");
-                    self.to_propagate.push_back(Propagated::SuspendVideo {
-                        peer_id: sub_id,
-                        suspended: false,
-                    });
-                }
-                PacerAction::ChangeLayer(_) | PacerAction::NoChange => {}
+            let (event, suspend) = apply_pacer_action(client.drive_pacer(budget), sub_id);
+            if let Some(suspended) = suspend {
+                client.set_suspended(suspended);
+                self.metrics
+                    .inc_suspend_video(if suspended { "enter" } else { "exit" });
+            }
+            if let Some(event) = event {
+                self.to_propagate.push_back(event);
             }
         }
     }
