@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.11.9...v0.12.0) (2026-07-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* SfuMediaPayload frame bytes are now Arc<[u8]> (str0m 0.21).
+
+### Added
+
+* migrate to str0m 0.21 with Arc&lt;[u8]&gt; zero-copy media payload (Phase -1) ([9d05414](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/9d05414c8782ed48b053522a11d44da3a61fd5f7))
+* registry bandwidth accessor + googcc pass-throughs + auto-feed on receive (Phase 3) ([a8213ef](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/a8213eff50a5aa3fed0128e5c4f5d459f6cfbe6d))
+* single-arbitration pacer drive with exclusivity guard + min-tick floor (Phase 2, E1 ADR-13) ([03bb6d0](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/03bb6d09eb481ee90b00132e014353b1844c78ea))
+
+
+### Documentation
+
+* rewrite API_SPEC ownership/behavior + v0.11.8→v0.12.0 migration guide (Phase 5) ([0894bff](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/0894bfff8688a0b210b1bdce30e02ea4d92c5296))
+
+
+### Changed
+
+* extract apply_pacer_action as a pure match + emit hook (Phase 0) ([c33a17a](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/c33a17aaa3a32d474899c6b1efd63ff09d9dba96))
+
 ## [0.11.9](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.11.8...v0.11.9) (2026-07-09)
 
 
