@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.9](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.11.8...v0.11.9) (2026-07-09)
+
+
+### Added
+
+* forward SFrame key-epoch (KID) RTP header extension on fanout ([#42](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/42)) ([6e1a74a](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/6e1a74a4dbd53a875e99a01e12e19fd25feac431))
+
 ## [0.11.8](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.11.7...v0.11.8) (2026-07-08)
 
 
