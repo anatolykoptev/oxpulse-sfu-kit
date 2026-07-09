@@ -151,7 +151,6 @@ fn raw_module_contains_expected_exports() {
     );
 }
 
-
 /// Recursively collect `*.rs` files under `dir` (relative to the crate root,
 /// which is the CWD for integration tests). No external walk dependency.
 fn rust_source_files(dir: &str) -> Vec<std::path::PathBuf> {
@@ -186,8 +185,8 @@ fn no_unexpected_trait_impls_for_str0m_types() {
 
     let mut violations: Vec<String> = Vec::new();
     for entry in rust_source_files("src") {
-        let contents = fs::read_to_string(&entry)
-            .unwrap_or_else(|e| panic!("read {}: {e}", entry.display()));
+        let contents =
+            fs::read_to_string(&entry).unwrap_or_else(|e| panic!("read {}: {e}", entry.display()));
         for (idx, raw_line) in contents.lines().enumerate() {
             let line = raw_line.trim_start();
             // Only `impl` blocks whose target (after `for`) is a str0m type.
