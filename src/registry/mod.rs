@@ -21,6 +21,25 @@ mod lifecycle;
 #[cfg(any(test, feature = "test-utils"))]
 mod test_seams;
 
+/// ADR-9 (Phase 3): `googcc-bwe`'s Registry-level pass-throughs
+/// (`Registry::enable_googcc_for_subscriber`,
+/// `Registry::googcc_ceiling_for_subscriber_mut`) live behind
+/// `self.bandwidth`, which is gated on `kalman-bwe` alone (see the
+/// `bandwidth` field a few lines below). `Cargo.toml` declares `kalman-bwe`
+/// and `googcc-bwe` orthogonal, so a `googcc-bwe`-only build would otherwise
+/// fail deep inside this module with a cryptic "no field `bandwidth`" error.
+/// Fail loudly and traceably instead: enable `kalman-bwe` alongside
+/// `googcc-bwe`, or use `BandwidthEstimator` directly without `Registry`.
+/// Regating `bandwidth` to `any(kalman-bwe, googcc-bwe)` is a named,
+/// out-of-scope follow-up (Phase 6c).
+#[cfg(all(feature = "googcc-bwe", not(feature = "kalman-bwe")))]
+compile_error!(
+    "googcc-bwe requires kalman-bwe at the Registry level: the `bandwidth` field on \
+     `Registry` that hosts GoogCC's per-subscriber ceiling is gated on `kalman-bwe` alone \
+     (see the `Registry` struct definition in this file). Enable both features, or drive \
+     `oxpulse_sfu_kit::BandwidthEstimator` directly without `Registry`."
+);
+
 /// Single-owner registry of connected peers in a room.
 ///
 /// Drive it by calling [`insert`][Registry::insert] when a peer completes
@@ -45,6 +64,13 @@ pub struct Registry {
     /// Per-subscriber Kalman/loss bandwidth estimator.
     #[cfg(feature = "kalman-bwe")]
     pub(crate) bandwidth: crate::bwe::estimator::BandwidthEstimator,
+    /// Fixed epoch for converting `Instant` to `f64` ms for the RTP-derived
+    /// GoogCC feed in `poll_all` (ADR-9/Phase 3). Kept separate from
+    /// `detector_epoch` above: `active-speaker` and `googcc-bwe` are
+    /// orthogonal features, so the GoogCC feed cannot depend on the
+    /// speaker-detector epoch existing.
+    #[cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))]
+    bwe_epoch: std::time::Instant,
 }
 
 impl Registry {
@@ -60,6 +86,8 @@ impl Registry {
             detector_epoch: std::time::Instant::now(),
             #[cfg(feature = "kalman-bwe")]
             bandwidth: crate::bwe::estimator::BandwidthEstimator::new(),
+            #[cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))]
+            bwe_epoch: std::time::Instant::now(),
         }
     }
 
@@ -225,5 +253,163 @@ impl Registry {
         now: std::time::Instant,
     ) {
         self.bandwidth.on_twcc_feedback(subscriber, feedback, now);
+    }
+
+    /// Read-only view of the per-room bandwidth estimator, for observability
+    /// (metrics, debugging, tests that want to read `estimate_bps` /
+    /// `googcc_coverage` without a `for_tests` seam).
+    ///
+    /// ADR-8: this is the *only* way to reach `BandwidthEstimator` from
+    /// outside `Registry` in production code. There is deliberately no public
+    /// `bandwidth_mut()` — a raw `&mut` would let a caller construct a second
+    /// pacer-drive loop that bypasses the single-arbitration guarantee
+    /// ([`Registry::update_pacer_layers`]). Mutation instead goes through the
+    /// narrow intent-scoped commands: [`Self::enable_googcc_for_subscriber`],
+    /// [`Self::googcc_ceiling_for_subscriber_mut`], and the
+    /// [`Propagated::ClientBudgetHint`] auto-consumption in `fanout_pending`.
+    /// Tests that need raw injection keep using `bandwidth_mut_for_tests`
+    /// (test-utils-gated).
+    #[must_use]
+    pub fn bandwidth(&self) -> &crate::bwe::estimator::BandwidthEstimator {
+        &self.bandwidth
+    }
+}
+
+/// GoogCC pass-throughs (ADR-8, ADR-9, Bug #6). Both `kalman-bwe` (hosts
+/// `self.bandwidth`) and `googcc-bwe` (hosts the estimator these delegate to)
+/// are required — see the `compile_error!` guard above this module's
+/// `Registry` struct definition for the googcc-bwe-alone failure mode.
+#[cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))))]
+impl Registry {
+    /// Enable the per-subscriber [`GoogCcEstimator`][crate::bwe::GoogCcEstimator]
+    /// for `subscriber`, so it participates in [`Self::bandwidth`]'s combined
+    /// estimate as an additional, independently-computed ceiling (ADR-14 —
+    /// intentional ensemble with the native/Kalman signal, not duplication).
+    ///
+    /// Idempotent (delegates to
+    /// [`BandwidthEstimator::enable_googcc_for_subscriber`][crate::BandwidthEstimator::enable_googcc_for_subscriber]).
+    /// After enabling, [`Registry::poll_all`] auto-feeds the estimator from
+    /// RTP-timestamp-derived video packet timing (ADR-1); use
+    /// [`Self::googcc_ceiling_for_subscriber_mut`] only for advanced manual
+    /// feeds (e.g. a TWCC-level consumer).
+    pub fn enable_googcc_for_subscriber(&mut self, subscriber: crate::propagate::ClientId) {
+        self.bandwidth.enable_googcc_for_subscriber(subscriber);
+    }
+
+    /// Mutable access to the per-subscriber
+    /// [`GoogCcEstimator`][crate::bwe::GoogCcEstimator] for `subscriber`, for
+    /// advanced manual ceiling feeds outside the [`Registry::poll_all`]
+    /// auto-feed (e.g. a TWCC-level consumer feeding real receiver-reported
+    /// timing instead of the RTP-timestamp approximation).
+    ///
+    /// Returns `None` if `subscriber` is unknown to the estimator or
+    /// [`Self::enable_googcc_for_subscriber`] was never called for it.
+    ///
+    /// ADR-8: this is the *only* sanctioned ceiling-tweak path now that the
+    /// raw `bandwidth_mut()` accessor has been dropped — narrow and
+    /// intent-scoped, mirroring [`Self::on_twcc_feedback`]'s pass-through shape.
+    #[must_use]
+    pub fn googcc_ceiling_for_subscriber_mut(
+        &mut self,
+        subscriber: crate::propagate::ClientId,
+    ) -> Option<&mut crate::bwe::GoogCcEstimator> {
+        self.bandwidth.googcc_for_subscriber_mut(subscriber)
+    }
+}
+
+#[cfg(all(test, feature = "kalman-bwe"))]
+mod bandwidth_accessor_tests {
+    use super::Registry;
+    use crate::propagate::ClientId;
+
+    #[test]
+    fn bandwidth_reads_native_estimate_fed_via_on_twcc_feedback_seam() {
+        // bandwidth() must reflect state written through the estimator's own
+        // API (record_native_estimate via bandwidth_mut_for_tests here), not
+        // just a fresh empty estimator — i.e. it's a live view, not a copy.
+        let mut reg = Registry::new_for_tests();
+        let id = ClientId(1);
+        reg.bandwidth_mut_for_tests()
+            .record_native_estimate(id, 1_000_000.0);
+        assert!(
+            reg.bandwidth()
+                .estimate_bps(id, std::time::Instant::now())
+                .is_some(),
+            "bandwidth() must observe state written via the estimator seam"
+        );
+    }
+
+    #[test]
+    fn bandwidth_returns_none_for_unknown_subscriber() {
+        let reg = Registry::new_for_tests();
+        assert!(reg
+            .bandwidth()
+            .estimate_bps(ClientId(99), std::time::Instant::now())
+            .is_none());
+    }
+}
+
+#[cfg(all(test, feature = "kalman-bwe", feature = "googcc-bwe"))]
+mod googcc_pass_through_tests {
+    use super::Registry;
+    use crate::propagate::ClientId;
+
+    #[test]
+    fn enable_googcc_for_subscriber_is_idempotent_and_reachable_via_ceiling_mut() {
+        let mut reg = Registry::new_for_tests();
+        let id = ClientId(7);
+
+        // Not enabled yet: the ceiling accessor is None.
+        assert!(reg.googcc_ceiling_for_subscriber_mut(id).is_none());
+
+        reg.enable_googcc_for_subscriber(id);
+        assert!(reg.googcc_ceiling_for_subscriber_mut(id).is_some());
+
+        // Feed one packet, then re-enable: state must survive (idempotent).
+        reg.googcc_ceiling_for_subscriber_mut(id)
+            .unwrap()
+            .on_receive(100.0, 95.0, 0.0);
+        let bps_before = reg
+            .googcc_ceiling_for_subscriber_mut(id)
+            .unwrap()
+            .current_bps();
+        reg.enable_googcc_for_subscriber(id);
+        let bps_after = reg
+            .googcc_ceiling_for_subscriber_mut(id)
+            .unwrap()
+            .current_bps();
+        assert_eq!(
+            bps_before, bps_after,
+            "re-enabling must not reset existing GoogCC state"
+        );
+    }
+
+    #[test]
+    fn googcc_ceiling_applies_through_bandwidth_accessor() {
+        let mut reg = Registry::new_for_tests();
+        let id = ClientId(8);
+        let now = std::time::Instant::now();
+
+        reg.bandwidth_mut_for_tests()
+            .force_high_estimate_for_tests(id, 5_000_000.0);
+        let bps_before = reg.bandwidth().estimate_bps(id, now).unwrap();
+        assert!(
+            bps_before > 1_000_000,
+            "expected a high pre-ceiling estimate"
+        );
+
+        reg.enable_googcc_for_subscriber(id);
+        let gcc = reg.googcc_ceiling_for_subscriber_mut(id).unwrap();
+        for i in 0..20 {
+            gcc.on_receive(i as f64 * 10.0, i as f64 * 10.0, 0.5);
+        }
+
+        let bps_after = reg.bandwidth().estimate_bps(id, now).unwrap();
+        assert!(
+            bps_after < bps_before,
+            "GoogCC ceiling fed via the Registry pass-through did not apply: \
+             before={bps_before}, after={bps_after}"
+        );
     }
 }

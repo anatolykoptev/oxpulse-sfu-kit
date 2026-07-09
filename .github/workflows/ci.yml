@@ -29,6 +29,12 @@ jobs:
         include:
           - features: "--all-features"
           - features: "--no-default-features"
+          # Pacer-only combo (no kalman-bwe): the sole build where
+          # poll_all's PacerAction::* arm drives the FSM directly instead of
+          # update_pacer_layers. Without this entry, that arm — and the
+          # _PACER_SINGLE_DRIVER_GUARD poll_all-drives predicate it backs —
+          # is never exercised by CI (Phase-2 review nit).
+          - features: "--no-default-features --features pacer"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

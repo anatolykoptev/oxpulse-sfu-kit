@@ -68,6 +68,14 @@ fn apply_pacer_action(
 /// `pacer` feature space (both driving, or neither) — the exact regression that
 /// produced the two-driver race. Paired with the runtime `exactly_one_pacer_driver`
 /// cfg-matrix test below.
+// LOCKSTEP WARNING: the two `cfg!(...)` predicates below must always match
+// the literal `#[cfg(...)]` attributes gating the two drive blocks they
+// describe — poll_all's `#[cfg(all(feature = "pacer", not(feature =
+// "kalman-bwe")))]` arm (this file, `poll_all`) and `update_pacer_layers`'s
+// `#[cfg(all(feature = "kalman-bwe", feature = "pacer"))]` impl block (this
+// file, below). Editing a block's `#[cfg]` without updating its matching
+// predicate here leaves this guard silently green with 0 or 2 live drivers —
+// exactly the class of regression it exists to catch.
 #[cfg(feature = "pacer")]
 const _PACER_SINGLE_DRIVER_GUARD: () = {
     let poll_all_drives = cfg!(all(feature = "pacer", not(feature = "kalman-bwe")));
@@ -84,6 +92,15 @@ impl Registry {
     /// Returns the earliest next wake-up deadline.
     pub fn poll_all(&mut self, now: Instant) -> Instant {
         let mut deadline = now + std::time::Duration::from_millis(100);
+        // ADR-1/ADR-14 (Bug #6, Phase 3): capture the most recent video
+        // packet's RTP-derived (arrival_ms, send_ms) timing observed during
+        // this pass, fed to every client's GoogCC estimator after the loop
+        // below. One sample per `poll_all` call (the last video packet seen)
+        // is a conservative approximation of the room's ingress-arrival
+        // health — sufficient for the overuse-detection signal, mirroring
+        // oxpulse-partner-edge's registry/poll.rs wiring.
+        #[cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))]
+        let mut last_video_timing: Option<(f64, f64)> = None;
         for client in self.clients.iter_mut() {
             loop {
                 if !client.is_alive() {
@@ -163,8 +180,31 @@ impl Registry {
                                 }
                             }
                         }
+                        #[cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))]
+                        if let Propagated::MediaData(_, ref data) = other {
+                            // Video-only: see `SfuMediaPayload::is_video` docs
+                            // for why audio packets are excluded here.
+                            if data.is_video() {
+                                let arrival_ms =
+                                    now.saturating_duration_since(self.bwe_epoch).as_secs_f64()
+                                        * 1000.0;
+                                last_video_timing = Some((arrival_ms, data.rtp_send_ms()));
+                            }
+                        }
                         self.to_propagate.push_back(other);
                     }
+                }
+            }
+        }
+        // ADR-1/ADR-14: feed every connected client's GoogCC estimator with
+        // this pass's latest video timing sample, if GoogCC was enabled for
+        // it (`Registry::enable_googcc_for_subscriber`) — a no-op otherwise,
+        // since `googcc_for_subscriber_mut` returns `None` when disabled.
+        #[cfg(all(feature = "kalman-bwe", feature = "googcc-bwe"))]
+        if let Some((arrival_ms, send_ms)) = last_video_timing {
+            for client in &self.clients {
+                if let Some(gcc) = self.bandwidth.googcc_for_subscriber_mut(client.id) {
+                    gcc.on_receive(arrival_ms, send_ms, 0.0);
                 }
             }
         }
