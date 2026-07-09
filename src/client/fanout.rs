@@ -145,7 +145,7 @@ impl Client {
         let Some(writer) = self.rtc.writer(mid) else {
             return;
         };
-        let (_pt_raw, network_time, rtp_time, _rid, payload, params) = data.clone_write_parts();
+        let (_pt_raw, network_time, rtp_time, _rid, payload, params) = data.write_parts();
         let Some(pt) = writer.match_params(params) else {
             return;
         };

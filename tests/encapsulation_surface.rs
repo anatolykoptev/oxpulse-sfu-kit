@@ -150,3 +150,97 @@ fn raw_module_contains_expected_exports() {
         "src/raw.rs must re-export str0m::RtcConfig as RawRtcConfig"
     );
 }
+
+
+/// Recursively collect `*.rs` files under `dir` (relative to the crate root,
+/// which is the CWD for integration tests). No external walk dependency.
+fn rust_source_files(dir: &str) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(dir)];
+    while let Some(d) = stack.pop() {
+        let Ok(rd) = fs::read_dir(&d) else { continue };
+        for ent in rd.flatten() {
+            let p = ent.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().and_then(|e| e.to_str()) == Some("rs") {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
+/// A trait impl whose *target* type is a `str0m` type (`impl Trait for str0m::…`)
+/// pulls str0m into our public surface exactly as a bare public signature would.
+/// Only the documented, zero-cost interop `From` conversions in `src/ids.rs` are
+/// sanctioned (ADR-S13). Any other `impl … for str0m::…` is a regression.
+#[test]
+fn no_unexpected_trait_impls_for_str0m_types() {
+    // Full impl-header substrings of the sanctioned interop impls (all ids.rs).
+    const ALLOWED_IMPLS_FOR_STR0M: &[&str] = &[
+        "impl From<SfuRid> for str0m::media::Rid {",
+        "impl From<SfuMid> for str0m::media::Mid {",
+        "impl From<SfuPt> for str0m::media::Pt {",
+    ];
+
+    let mut violations: Vec<String> = Vec::new();
+    for entry in rust_source_files("src") {
+        let contents = fs::read_to_string(&entry)
+            .unwrap_or_else(|e| panic!("read {}: {e}", entry.display()));
+        for (idx, raw_line) in contents.lines().enumerate() {
+            let line = raw_line.trim_start();
+            // Only `impl` blocks whose target (after `for`) is a str0m type.
+            if !line.starts_with("impl ") || !line.contains(" for str0m::") {
+                continue;
+            }
+            if ALLOWED_IMPLS_FOR_STR0M.iter().any(|a| line.contains(a)) {
+                continue;
+            }
+            violations.push(format!("{}:{}: {}", entry.display(), idx + 1, line));
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Trait impls target str0m types outside the ids.rs interop allowlist \
+         (this leaks str0m into the public surface):\n{}\n\n\
+         If a new interop conversion is intentional, document it in src/ids.rs \
+         and add its impl header to ALLOWED_IMPLS_FOR_STR0M in this test.",
+        violations.join("\n")
+    );
+}
+
+/// ADR-S13: the `bwe` and `registry` modules sit *above* the str0m boundary —
+/// they operate purely on our own abstractions and must never name a str0m
+/// type. `registry/test_seams.rs` is the single sanctioned exception (it seeds
+/// str0m `Mid`s for tests only).
+#[test]
+fn bwe_and_registry_are_str0m_free() {
+    let mut violations: Vec<String> = Vec::new();
+    for dir in ["src/bwe", "src/registry"] {
+        for entry in rust_source_files(dir) {
+            if entry.file_name().and_then(|n| n.to_str()) == Some("test_seams.rs") {
+                continue; // ADR-S13 sanctioned test-only seam.
+            }
+            let contents = fs::read_to_string(&entry)
+                .unwrap_or_else(|e| panic!("read {}: {e}", entry.display()));
+            for (idx, raw_line) in contents.lines().enumerate() {
+                if raw_line.contains("str0m::") {
+                    violations.push(format!(
+                        "{}:{}: {}",
+                        entry.display(),
+                        idx + 1,
+                        raw_line.trim()
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "bwe/registry modules reference str0m types (ADR-S13 boundary violation):\n{}",
+        violations.join("\n")
+    );
+}
