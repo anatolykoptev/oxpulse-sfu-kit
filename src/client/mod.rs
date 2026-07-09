@@ -103,6 +103,15 @@ pub struct Client {
     /// Only present with `pacer` feature.
     #[cfg(feature = "pacer")]
     pub(crate) suspended: bool,
+    /// ADR-13 min-tick floor: instant of the last pacer FSM advance for this
+    /// subscriber at the sole `kalman-bwe` drive site. `None` until the first
+    /// drive. Read/written only via [`Client::pacer_tick_ready`] from
+    /// `Registry::update_pacer_layers`; throttles FSM advance to at most one per
+    /// [`PACER_MIN_TICK_INTERVAL`][crate::bwe::PACER_MIN_TICK_INTERVAL] so a lossy
+    /// RTP burst on the ~20–30 ms `MediaData` cadence cannot collapse the
+    /// `SUSPEND_STREAK` debounce window (Bug #7).
+    #[cfg(all(feature = "pacer", feature = "kalman-bwe"))]
+    pub(crate) last_pacer_drive: Option<Instant>,
     /// Maximum AV1 temporal layer to forward to this subscriber (default = all).
     #[cfg(feature = "av1-dd")]
     pub(crate) max_temporal_layer: u8,

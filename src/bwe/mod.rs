@@ -75,6 +75,27 @@ pub const SUSPEND_STREAK: u8 = 2;
 #[cfg(feature = "pacer")]
 pub const UPGRADE_STREAK: u8 = 3;
 
+/// Minimum wall-clock interval between two consecutive pacer FSM advances for a
+/// single subscriber at the sole `kalman-bwe` drive site
+/// ([`Registry::update_pacer_layers`][crate::Registry::update_pacer_layers]).
+///
+/// ## Why (ADR-13, Bug #7)
+///
+/// Once `update_pacer_layers` is the *sole* driver, it advances the FSM on every
+/// forwarded `MediaData` (~20–30 ms video cadence). Without a floor, the
+/// `SUSPEND_STREAK`-tick debounce window collapses from the ~200–1000 ms it was
+/// designed for to ~40–60 ms — a range a single lossy RTP burst routinely fills
+/// with 2+ below-threshold samples, tripping a spurious `SuspendVideo` in the
+/// *expected* case. Gating FSM advance to at most once per `PACER_MIN_TICK_INTERVAL`
+/// restores the intended debounce window (≈`SUSPEND_STREAK` × 100 ms ≈ 200 ms).
+///
+/// 100 ms matches the str0m-native `BandwidthEstimate` cadence and mirrors
+/// libwebrtc goog_cc's rate-limiting of congestion-control rate transitions
+/// (which operate on ~100 ms windows), so the pacer never reacts faster than the
+/// estimator underneath it can meaningfully change.
+#[cfg(all(feature = "pacer", feature = "kalman-bwe"))]
+pub const PACER_MIN_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
 #[cfg(feature = "kalman-bwe")]
 pub mod estimator;
 #[cfg(feature = "kalman-bwe")]

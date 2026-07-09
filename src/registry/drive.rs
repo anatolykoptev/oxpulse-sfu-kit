@@ -60,6 +60,24 @@ fn apply_pacer_action(
     }
 }
 
+/// FITNESS FUNCTION (ADR-3+4, Bug #7): exactly one pacer drive site is live per
+/// build combo. `poll_all` advances the FSM directly ONLY without `kalman-bwe`;
+/// with `kalman-bwe` it merely FEEDS `record_native_estimate` and
+/// `update_pacer_layers` becomes the sole driver. This compile-time assertion
+/// fails the build if the two `#[cfg]` predicates ever stop partitioning the
+/// `pacer` feature space (both driving, or neither) — the exact regression that
+/// produced the two-driver race. Paired with the runtime `exactly_one_pacer_driver`
+/// cfg-matrix test below.
+#[cfg(feature = "pacer")]
+const _PACER_SINGLE_DRIVER_GUARD: () = {
+    let poll_all_drives = cfg!(all(feature = "pacer", not(feature = "kalman-bwe")));
+    let update_pacer_layers_drives = cfg!(all(feature = "pacer", feature = "kalman-bwe"));
+    assert!(
+        poll_all_drives ^ update_pacer_layers_drives,
+        "exactly one pacer drive site must be live per feature combo (ADR-3+4)"
+    );
+};
+
 impl Registry {
     /// Poll every client until each returns a `Timeout`, queuing propagated events.
     ///
@@ -86,7 +104,21 @@ impl Registry {
                             peer_id,
                             estimate: *estimate,
                         });
-                        #[cfg(feature = "pacer")]
+                        // ADR-3+4 single-arbitration cfg-split (Bug #7). Under
+                        // `kalman-bwe`, `update_pacer_layers` is the SOLE pacer
+                        // driver; here we only FEED the str0m-native estimate into
+                        // the min-combiner as a ceiling and never advance the FSM,
+                        // so two uncoordinated cadences can no longer corrupt one
+                        // streak counter. Without `kalman-bwe`, `poll_all` stays the
+                        // sole driver and advances the FSM directly. The
+                        // `_PACER_SINGLE_DRIVER_GUARD` const asserts these two arms
+                        // partition the `pacer` feature space.
+                        #[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
+                        {
+                            self.bandwidth
+                                .record_native_estimate(peer_id, estimate.bps as f64);
+                        }
+                        #[cfg(all(feature = "pacer", not(feature = "kalman-bwe")))]
                         {
                             let (event, suspend) =
                                 apply_pacer_action(client.drive_pacer(estimate.bps), peer_id);
@@ -197,7 +229,7 @@ impl Registry {
             // so subscribers receive media on their freshly-chosen layer.
             #[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
             if let Propagated::MediaData(origin, _) = &p {
-                self.update_pacer_layers(*origin);
+                self.update_pacer_layers(*origin, now);
             }
             fanout(&p, &mut self.clients);
         }
@@ -331,6 +363,113 @@ mod tests {
         assert!(event.is_none());
         assert_eq!(suspend, None);
     }
+
+    /// cfg-matrix fitness test (ADR-3+4, Bug #7): exactly one pacer drive site is
+    /// live in this build combo. Runs the same XOR the compile-time
+    /// `_PACER_SINGLE_DRIVER_GUARD` asserts, so a CI pass across the feature
+    /// matrix confirms the single-arbitration invariant at runtime too. If a
+    /// future change makes both sites drive (or neither), this fails.
+    #[test]
+    fn exactly_one_pacer_driver() {
+        let poll_all_drives = cfg!(all(feature = "pacer", not(feature = "kalman-bwe")));
+        let update_pacer_layers_drives = cfg!(all(feature = "pacer", feature = "kalman-bwe"));
+        assert!(
+            poll_all_drives ^ update_pacer_layers_drives,
+            "exactly one pacer drive site must be live (poll_all XOR update_pacer_layers)"
+        );
+    }
+}
+
+/// ADR-13 min-tick floor: with `update_pacer_layers` as the sole driver, a burst
+/// of below-threshold ticks inside `PACER_MIN_TICK_INTERVAL` must not satisfy the
+/// `SUSPEND_STREAK` debounce — the floor throttles all but one FSM advance per
+/// window per subscriber.
+#[cfg(all(test, feature = "pacer", feature = "kalman-bwe"))]
+mod min_tick_floor_tests {
+    use super::*;
+    use crate::bwe::PACER_MIN_TICK_INTERVAL;
+    use crate::client::test_seed::new_client;
+    use std::time::{Duration, Instant};
+
+    fn suspend_video_enters(evs: &[Propagated]) -> usize {
+        evs.iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    Propagated::SuspendVideo {
+                        suspended: true,
+                        ..
+                    }
+                )
+            })
+            .count()
+    }
+
+    #[test]
+    fn min_tick_floor_prevents_burst_suspend() {
+        let mut reg = Registry::new_for_tests();
+        let pub_id = ClientId(900);
+        let sub_id = ClientId(901);
+        reg.insert(new_client(pub_id));
+        reg.insert(new_client(sub_id));
+
+        // Force the subscriber's combined estimate below SUSPEND_VIDEO_BPS (10k)
+        // via a low native ceiling, so every FSM advance is a suspend-streak tick.
+        reg.bandwidth_mut_for_tests()
+            .record_native_estimate(sub_id, 5_000.0);
+
+        let t0 = Instant::now();
+
+        // Tick 1 at t0: suspend_streak=1 (SUSPEND_STREAK=2) -> NoChange.
+        reg.update_pacer_layers(pub_id, t0);
+        assert_eq!(
+            suspend_video_enters(&reg.drain_propagated_for_tests()),
+            0,
+            "first below-threshold tick must not suspend (debounce)"
+        );
+
+        // Tick 2 at t0+10ms: inside the 100ms floor -> throttled, FSM not advanced.
+        // Without the floor this 2nd streak tick WOULD fire SuspendVideo.
+        reg.update_pacer_layers(pub_id, t0 + Duration::from_millis(10));
+        assert_eq!(
+            suspend_video_enters(&reg.drain_propagated_for_tests()),
+            0,
+            "burst tick inside the min-tick floor must not advance the FSM"
+        );
+
+        // Tick 3 at t0 + PACER_MIN_TICK_INTERVAL: floor cleared -> advances,
+        // suspend_streak reaches 2 -> SuspendVideo.
+        reg.update_pacer_layers(pub_id, t0 + PACER_MIN_TICK_INTERVAL);
+        assert_eq!(
+            suspend_video_enters(&reg.drain_propagated_for_tests()),
+            1,
+            "a tick at/after the floor must advance the FSM and suspend"
+        );
+    }
+
+    #[test]
+    fn first_tick_records_drive_instant() {
+        let mut reg = Registry::new_for_tests();
+        let pub_id = ClientId(910);
+        let sub_id = ClientId(911);
+        reg.insert(new_client(pub_id));
+        reg.insert(new_client(sub_id));
+        reg.bandwidth_mut_for_tests()
+            .record_native_estimate(sub_id, 1_000_000.0);
+
+        // First advance is never throttled: last_pacer_drive is None -> drives + records.
+        reg.update_pacer_layers(pub_id, Instant::now());
+        let recorded = reg
+            .clients_mut_for_tests()
+            .iter()
+            .find(|c| c.id == sub_id)
+            .map(|c| c.last_pacer_drive.is_some())
+            .expect("subscriber present");
+        assert!(
+            recorded,
+            "first update_pacer_layers must record a drive instant for the subscriber"
+        );
+    }
 }
 
 /// Default simulcast ladder used when the publisher has not yet emitted active RIDs.
@@ -349,10 +488,16 @@ impl Registry {
     /// Called on every incoming `MediaData` event from the publisher so the
     /// pacer has fresh input every 20ms (nominal video packet cadence).
     ///
+    /// `now` is threaded in from [`fanout_pending`][Self::fanout_pending] (one
+    /// clock read per drain pass) rather than sampled internally, so the
+    /// ADR-13 min-tick floor is deterministic under test.
+    ///
+    /// This is the **sole** pacer drive site in the `kalman-bwe` build (ADR-3+4):
+    /// it reads the combined estimate (`min` of Kalman/loss/native/googcc/hint)
+    /// and advances each subscriber's FSM, gated by the ADR-13 min-tick floor.
+    ///
     /// Only available with both `kalman-bwe` and `pacer` features.
-    pub fn update_pacer_layers(&mut self, origin: crate::propagate::ClientId) {
-        let now = std::time::Instant::now();
-
+    pub fn update_pacer_layers(&mut self, origin: crate::propagate::ClientId, now: Instant) {
         // Snapshot publisher's active RIDs before the mutable loop (borrow checker).
         let publisher_rids: Vec<crate::ids::SfuRid> = self
             .clients
@@ -387,6 +532,17 @@ impl Registry {
             let Some(budget) = self.bandwidth.estimate_bps(sub_id, now) else {
                 continue;
             };
+
+            // ADR-13 min-tick floor (Bug #7): as the SOLE driver this runs on
+            // every ~20–30 ms MediaData. Without the floor, two below-threshold
+            // ticks land inside ~60 ms and trip a spurious SuspendVideo before the
+            // SUSPEND_STREAK debounce can reject a burst. Advance the FSM at most
+            // once per PACER_MIN_TICK_INTERVAL per subscriber; count throttled
+            // ticks so the floor is observable in production.
+            if !client.pacer_tick_ready(now, crate::bwe::PACER_MIN_TICK_INTERVAL) {
+                self.metrics.inc_pacer_tick_throttled();
+                continue;
+            }
 
             // Mirror update_peer_bwe so Prometheus stays in sync.
             #[cfg(feature = "metrics-prometheus")]

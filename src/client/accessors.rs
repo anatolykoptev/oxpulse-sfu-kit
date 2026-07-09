@@ -183,6 +183,30 @@ impl Client {
     pub fn is_suspended(&self) -> bool {
         self.suspended
     }
+
+    /// ADR-13 min-tick floor gate for the sole `kalman-bwe` pacer drive site.
+    ///
+    /// Returns `true` — and records `now` as the last-drive instant — when at
+    /// least `min_interval` has elapsed since the previous advance (or this is
+    /// the first advance for the subscriber); returns `false` otherwise, telling
+    /// the caller to skip driving the FSM this tick. Throttles FSM advance to at
+    /// most one per `min_interval` so a lossy RTP burst on the ~20–30 ms
+    /// `MediaData` cadence cannot satisfy the `SUSPEND_STREAK` debounce inside a
+    /// sub-window it was never designed for (Bug #7).
+    #[cfg(all(feature = "pacer", feature = "kalman-bwe"))]
+    pub(crate) fn pacer_tick_ready(
+        &mut self,
+        now: std::time::Instant,
+        min_interval: std::time::Duration,
+    ) -> bool {
+        match self.last_pacer_drive {
+            Some(last) if now.saturating_duration_since(last) < min_interval => false,
+            _ => {
+                self.last_pacer_drive = Some(now);
+                true
+            }
+        }
+    }
 }
 
 #[cfg(all(test, feature = "pacer"))]

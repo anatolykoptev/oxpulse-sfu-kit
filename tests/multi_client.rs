@@ -408,6 +408,7 @@ fn client_budget_hint_variant_exists() {
 #[cfg(all(feature = "kalman-bwe", feature = "pacer", feature = "test-utils"))]
 #[test]
 fn kalman_bwe_drives_layer_selection_via_update_pacer_layers() {
+    use oxpulse_sfu_kit::bwe::PACER_MIN_TICK_INTERVAL;
     use oxpulse_sfu_kit::client::test_seed::new_client;
     use oxpulse_sfu_kit::{ClientId, Registry, SfuRid};
 
@@ -442,9 +443,12 @@ fn kalman_bwe_drives_layer_selection_via_update_pacer_layers() {
         .bandwidth_mut_for_tests()
         .force_high_estimate_for_tests(sub_id, 2_000_000.0);
 
-    // Call update_pacer_layers 3 times — pacer streak threshold is 3 ticks.
-    for _ in 0..3 {
-        registry.update_pacer_layers(pub_id);
+    // Call update_pacer_layers 3 times — pacer upgrade streak threshold is 3 ticks.
+    // Space each tick by the ADR-13 min-tick floor so all three FSM advances land;
+    // ticks inside the floor are throttled and would not count toward the streak.
+    let base = std::time::Instant::now();
+    for i in 0..3u32 {
+        registry.update_pacer_layers(pub_id, base + PACER_MIN_TICK_INTERVAL * i);
     }
 
     let desired = registry
@@ -496,7 +500,7 @@ fn unfed_estimator_does_not_suspend_new_subscriber() {
     // Drive the pacer path more than SUSPEND_STREAK times, exactly as production
     // does per inbound publisher MediaData (~20ms cadence).
     for _ in 0..(SUSPEND_STREAK + 1) {
-        registry.update_pacer_layers(pub_id);
+        registry.update_pacer_layers(pub_id, std::time::Instant::now());
     }
 
     let sub = registry

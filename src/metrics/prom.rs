@@ -50,6 +50,15 @@ pub struct SfuMetrics {
     /// `SUSPEND_VIDEO_BPS`); `exit` increments on `PacerAction::RestoreAudio`
     /// (BWE recovered above `AUDIO_ONLY_BPS`). Phase 7 of the 1 KB/s resilience plan.
     pacer_suspend_video_total: prometheus::IntCounterVec,
+    /// Counter — pacer FSM advances suppressed by the ADR-13 min-tick floor at
+    /// the sole `kalman-bwe` drive site. Increments each time a would-be
+    /// `update_pacer_layers` advance is skipped because <`PACER_MIN_TICK_INTERVAL`
+    /// has elapsed since the subscriber's previous advance. A healthy fix shows a
+    /// high throttle rate (most ~20–30 ms `MediaData` ticks are coalesced into the
+    /// ~100 ms floor); a sudden drop to zero alongside rising
+    /// `pacer_suspend_video_total{direction="enter"}` is the Bug #7 regression
+    /// signal (the floor stopped engaging). No labels — single room-wide counter.
+    pacer_tick_throttled_total: prometheus::IntCounter,
     /// Per-subscriber drop count. Label `peer_id` reaped on disconnect via
     /// [`SfuMetrics::reap_dead_peer`] to bound cardinality across reconnect
     /// churn. Mirrors the F2b-2 reap pattern from partner-edge. Audio frames
@@ -207,6 +216,14 @@ impl SfuMetrics {
         )
         .context("pacer_suspend_video_total")?);
 
+        let pacer_tick_throttled_total = reg!(IntCounter::with_opts(Opts::new(
+            "pacer_tick_throttled_total",
+            "Pacer FSM advances suppressed by the ADR-13 min-tick floor (Bug #7). \
+             A high rate is healthy; a drop to zero with rising \
+             pacer_suspend_video_total{direction=enter} signals the floor stopped engaging.",
+        ))
+        .context("pacer_tick_throttled_total")?);
+
         let video_frames_dropped_total = reg!(IntCounterVec::new(
             Opts::new(
                 "video_frames_dropped_total",
@@ -263,6 +280,7 @@ impl SfuMetrics {
             speaker_medium,
             speaker_long,
             pacer_suspend_video_total,
+            pacer_tick_throttled_total,
             video_frames_dropped_total,
             forward_latency_seconds,
             track_bytes_total,
@@ -310,6 +328,12 @@ impl SfuMetrics {
         self.pacer_suspend_video_total
             .with_label_values(&[direction])
             .inc();
+    }
+
+    /// Increment the count of pacer FSM advances suppressed by the ADR-13
+    /// min-tick floor. Called once per throttled tick at the sole drive site.
+    pub(crate) fn inc_pacer_tick_throttled(&self) {
+        self.pacer_tick_throttled_total.inc();
     }
 
     /// Pre-resolve the per-peer drop counter so the fanout hot path avoids a
