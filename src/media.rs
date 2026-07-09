@@ -64,6 +64,9 @@ pub struct SfuMediaPayload {
     ///
     /// Stored as "0 = loudest, -127 = silent". None if the extension is absent.
     audio_level: Option<i8>,
+    /// SFrame key epoch (KID) from the RTP header extension, if a serializer is
+    /// registered for it (see [`crate::sframe`]). Re-attached on fanout.
+    key_epoch: Option<crate::sframe::KeyEpoch>,
 }
 
 impl SfuMediaPayload {
@@ -138,6 +141,16 @@ impl SfuMediaPayload {
         self.audio_level
     }
 
+    /// SFrame key epoch (KID) carried in the RTP header extension, if present.
+    ///
+    /// Populated only when an SFrame-KID extension serializer is registered on
+    /// the `Rtc` (see [`crate::sframe`]); otherwise always `None`. The fanout
+    /// path re-attaches this value to every forwarded packet.
+    #[must_use]
+    pub fn key_epoch(&self) -> Option<crate::sframe::KeyEpoch> {
+        self.key_epoch
+    }
+
     /// Clone the raw parts needed by str0m's fanout write path.
     ///
     /// Returns `(pt, network_time, rtp_time, rid, data, params)` where all types
@@ -178,6 +191,11 @@ impl SfuMediaPayload {
             #[cfg(feature = "vfm")]
             vfm_fm: None, // TODO(vfm): populate when str0m exposes ExtensionValues::frame_marking
             audio_level: data.ext_vals.audio_level,
+            key_epoch: data
+                .ext_vals
+                .user_values
+                .get::<crate::sframe::KeyEpoch>()
+                .copied(),
         }
     }
 }

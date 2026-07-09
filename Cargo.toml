@@ -72,6 +72,10 @@ name = "voice_dc"
 required-features = ["test-utils"]
 
 [[test]]
+name = "sframe_key_epoch"
+required-features = ["test-utils"]
+
+[[test]]
 name = "media_quality_metrics"
 required-features = ["test-utils", "metrics-prometheus"]
 

@@ -103,13 +103,37 @@ changes required. Signal DRED capability with `Propagated::AudioCodecHint`.
 
 The kit forwards RTP payloads opaquely, so SFrame (RFC 9605) ciphertext — including
 the in-payload SFrame header that carries the key id (KID) — passes through the SFU
-unchanged. The SFU does **not** parse or re-attach any key-id RTP *header extension*:
-if your clients negotiate one, forwarding the key epoch is not the SFU's job. Plumb it
-out-of-band instead — e.g. a dedicated DataChannel or your signalling layer (this is
-what the production edge does). The `KeyEpoch` newtype in `crate::sframe` is a
-convenience type for that app-side epoch bookkeeping; it is not wired into the
-forwarding path. Key distribution (MLS RFC 9420) is your signalling layer's
-responsibility.
+unchanged. The SFU never decrypts or inspects the payload.
+
+The in-payload KID above is authoritative and authenticated (it is part of the
+SFrame AEAD's AAD). As an **optional latency optimization**, some deployments
+*also* signal the KID in a dedicated **RTP header extension** so a subscriber can
+pre-warm the next key on rotation without first parsing the payload. If your
+clients do this, the SFU forwards it: the KID is captured off each inbound packet
+and re-attached to every fanned-out packet. This header-extension KID is a
+non-authoritative hint — receivers must still select the key from the in-payload
+header and let the AEAD fail closed on a mismatch.
+
+Like every str0m header extension, it must be registered on the `Rtc` and negotiated
+in SDP. Because the SFrame-KID extension has no standard URI, you choose the URI (it
+must match your clients' `a=extmap`). Register `sframe::sframe_key_id_extension(uri)`
+on the raw config for **every** peer:
+
+```rust,no_run
+use oxpulse_sfu_kit::{raw, sframe, SfuRtc};
+
+const SFRAME_KID_URI: &str = "urn:example:rtp-hdrext:sframe-kid";
+
+let cfg = raw::rtc_config().set_extension(8, sframe::sframe_key_id_extension(SFRAME_KID_URI));
+let rtc = SfuRtc::from_raw(cfg.build(std::time::Instant::now()));
+```
+
+`sframe_key_id_extension` uses `KeyEpochSerializer`, whose wire format is a fixed
+4-byte big-endian 32-bit KID — matching RFC 9605 §6.1 (the v1 KID width) and the
+`sframe-ratchet` browser client. If your clients encode the KID differently,
+supply your own `ExtensionSerializer` that parses into / writes from a `KeyEpoch`
+user value (the fanout path keys on the `KeyEpoch` type, not the bytes). Key
+distribution (MLS RFC 9420) remains your signalling layer's responsibility.
 
 ## Not included (by design)
 

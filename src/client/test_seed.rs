@@ -122,6 +122,50 @@ pub fn make_media_data(mid_tag: u8, rid: Option<SfuRid>) -> SfuMediaPayload {
     SfuMediaPayload::from_str0m(raw)
 }
 
+/// Build a synthetic `SfuMediaPayload` carrying an SFrame key epoch (KID) in
+/// its RTP header extension `user_values`, as str0m would populate it on ingest
+/// when a KID extension serializer is registered.
+///
+/// Used by SFrame forwarding tests to verify the KID is captured off the
+/// inbound packet and survives the fanout path.
+pub fn make_media_data_with_key_epoch(
+    mid_tag: u8,
+    rid: Option<SfuRid>,
+    key_epoch: crate::sframe::KeyEpoch,
+) -> SfuMediaPayload {
+    let mid: Mid = Mid::from(&*format!("m{mid_tag}"));
+    let pt = Pt::from(96u8);
+    let seq: SeqNo = 0u64.into();
+    let params = PayloadParams::new(
+        pt,
+        None,
+        CodecSpec {
+            codec: Codec::Vp8,
+            clock_rate: Frequency::NINETY_KHZ,
+            channels: None,
+            format: FormatParams::default(),
+        },
+    );
+    let mut ext_vals = ExtensionValues::default();
+    ext_vals.user_values.set(key_epoch);
+    let raw = MediaData {
+        mid,
+        pt,
+        rid: rid.map(|r| r.to_str0m()),
+        params,
+        time: MediaTime::from_90khz(0),
+        network_time: Instant::now(),
+        seq_range: seq..=seq,
+        data: vec![0xde, 0xad, 0xbe, 0xef],
+        ext_vals,
+        codec_extra: CodecExtra::None,
+        contiguous: true,
+        last_sender_info: None,
+        audio_start_of_talk_spurt: false,
+    };
+    SfuMediaPayload::from_str0m(raw)
+}
+
 /// Seed an incoming track on `client` as if the client were a relay source.
 ///
 /// Identical to [`seed_track_in`] except `relay_source = true` — so the
