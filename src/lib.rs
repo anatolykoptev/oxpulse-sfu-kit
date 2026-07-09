@@ -14,7 +14,15 @@
 //!   layer filtering.
 //! - **[`Registry`]** — room-level packet router. Routes UDP datagrams to the
 //!   correct peer via `rtc.accepts()`, drives `poll_all`, and fans out events to
-//!   every non-origin peer.
+//!   every non-origin peer. As of v0.12.0, `kalman-bwe`+`pacer` builds also get a
+//!   Registry-driven BWE ownership model here: auto-fed native/GoogCC ceilings,
+//!   a single-arbitration pacer drive, and a read-only [`Registry::bandwidth`]
+//!   accessor — see `docs/API_SPEC.md`'s "Registry-Level Ownership & Behavior"
+//!   section for the full contract. **That path is new and production-unproven**
+//!   (the kit's most mature consumer, oxpulse-partner-edge, forked its own
+//!   `Registry` around the lower-level primitives and does not exercise it);
+//!   the crate's own deterministic scenario harness is the acceptance gate,
+//!   not a production-validation claim.
 //! - **[`Propagated`]** — the event enum flowing between the registry and clients.
 //! - **[`SfuConfig`]** — runtime configuration (UDP port, bind address).
 //! - **[`run_udp_loop`]** — a ready-to-use async UDP
