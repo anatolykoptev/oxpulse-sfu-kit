@@ -109,6 +109,9 @@ pub mod kalman;
 pub mod loss;
 #[cfg(feature = "kalman-bwe")]
 pub mod subscriber;
+#[cfg(feature = "kalman-bwe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "kalman-bwe")))]
+pub use subscriber::BindingTerm;
 
 #[cfg(feature = "googcc-bwe")]
 #[cfg_attr(docsrs, doc(cfg(feature = "googcc-bwe")))]
