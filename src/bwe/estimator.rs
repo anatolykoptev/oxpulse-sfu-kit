@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use super::subscriber::{ClientHint, PerSubscriber};
+use super::subscriber::{BindingTerm, ClientHint, PerSubscriber};
 use crate::propagate::ClientId;
 
 /// Per-room bandwidth estimator: one `PerSubscriber` entry per connected peer.
@@ -42,6 +42,25 @@ impl BandwidthEstimator {
         self.subscribers
             .get(&subscriber)
             .map(|s| s.combined_bps(now) as u64)
+    }
+
+    /// Combined bitrate estimate *and* the [`BindingTerm`] that bound the min()
+    /// chain, or `None` if no state exists yet.
+    ///
+    /// Sibling of [`Self::estimate_bps`]; the `u64` component is identical to
+    /// that method's result. Lets a consumer label an observability metric with
+    /// *which* ceiling term is binding the estimate without reaching into the
+    /// private per-subscriber state or re-deriving the min-chain (issue #2310 V0).
+    #[must_use]
+    pub fn estimate_with_term(
+        &self,
+        subscriber: ClientId,
+        now: Instant,
+    ) -> Option<(u64, BindingTerm)> {
+        self.subscribers.get(&subscriber).map(|s| {
+            let (bps, term) = s.combined_bps_with_term(now);
+            (bps as u64, term)
+        })
     }
 
     /// Remove subscriber state on disconnect.
@@ -226,6 +245,28 @@ mod tests {
         est.record_client_hint(id(2), 400_000, now);
         let bps = est.estimate_bps(id(2), now).unwrap();
         assert!(bps <= 400_100, "hint ceiling not applied: {bps}");
+    }
+
+    #[test]
+    fn estimate_with_term_none_for_unknown_subscriber() {
+        let est = BandwidthEstimator::new();
+        assert!(est.estimate_with_term(id(99), Instant::now()).is_none());
+    }
+
+    #[test]
+    fn estimate_with_term_reports_client_hint_and_matching_value() {
+        let mut est = BandwidthEstimator::new();
+        let now = Instant::now();
+        {
+            let sub = est.get_or_insert(id(5));
+            sub.delay = super::super::kalman::DelayEstimator::new(5_000_000.0);
+            sub.loss = super::super::loss::LossEstimator::new(5_000_000.0);
+        }
+        est.record_client_hint(id(5), 400_000, now);
+        let (bps, term) = est.estimate_with_term(id(5), now).unwrap();
+        assert_eq!(term, BindingTerm::ClientHint);
+        // Value component must equal estimate_bps for the same instant.
+        assert_eq!(Some(bps), est.estimate_bps(id(5), now));
     }
 
     #[cfg(feature = "googcc-bwe")]
