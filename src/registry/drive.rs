@@ -569,7 +569,7 @@ impl Registry {
             // to 0 bps, which would SuspendVideo a freshly-joined subscriber. Mirrors
             // partner-edge pacer_select_layer's None handling. `self.bandwidth` is a
             // disjoint field from the `self.clients` iterator, so this borrows cleanly.
-            let Some(budget) = self.bandwidth.estimate_bps(sub_id, now) else {
+            let Some((budget, term)) = self.bandwidth.estimate_with_term(sub_id, now) else {
                 continue;
             };
 
@@ -584,9 +584,14 @@ impl Registry {
                 continue;
             }
 
-            // Mirror update_peer_bwe so Prometheus stays in sync.
+            // Mirror update_peer_bwe so Prometheus stays in sync; also record
+            // which ceiling term is binding the combined estimate (issue #2310 V0).
             #[cfg(feature = "metrics-prometheus")]
-            self.metrics.update_peer_bwe(*sub_id, budget);
+            {
+                self.metrics.update_peer_bwe(*sub_id, budget);
+                self.metrics
+                    .update_peer_binding_term(*sub_id, term.as_str());
+            }
 
             let (event, suspend) = apply_pacer_action(client.drive_pacer(budget), sub_id);
             if let Some(suspended) = suspend {

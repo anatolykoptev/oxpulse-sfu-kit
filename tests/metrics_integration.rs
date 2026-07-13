@@ -238,3 +238,44 @@ fn forward_latency_histogram_records_observations() {
         "video sum should be ~0.005, got {video_sum}",
     );
 }
+
+/// Verify the `combined_bps_binding_term` counter records the binding term of
+/// the per-subscriber combined bitrate estimate and appears in the Prometheus
+/// text output with the correct `peer_id` and `term` labels.
+#[cfg(all(feature = "kalman-bwe", feature = "pacer"))]
+#[test]
+fn combined_bps_binding_term_records_binding_term() {
+    use std::time::Instant;
+
+    use oxpulse_sfu_kit::bwe::BindingTerm;
+    use oxpulse_sfu_kit::client::test_seed::new_client;
+    use oxpulse_sfu_kit::{ClientId, Registry};
+
+    let mut reg = Registry::new_for_tests();
+    let pub_id = ClientId(500);
+    let sub_id = ClientId(501);
+    reg.insert(new_client(pub_id));
+    reg.insert(new_client(sub_id));
+
+    // Feed a low native ceiling so the combined estimate is bound by the
+    // native term, then drive the pacer through the real sole-driver call site.
+    reg.bandwidth_mut_for_tests()
+        .record_native_estimate(sub_id, 50_000.0);
+    reg.update_pacer_layers(pub_id, Instant::now());
+
+    let body = reg.scrape_metrics_for_tests();
+
+    assert!(
+        body.contains("sfu_combined_bps_binding_term"),
+        "combined_bps_binding_term metric should appear in scrape output:\n{body}"
+    );
+    assert!(
+        body.contains(&format!(
+            r#"sfu_combined_bps_binding_term{{peer_id="{}",term="{}"}} 1"#,
+            sub_id.0,
+            BindingTerm::Native.as_str()
+        )),
+        "expected binding term native for peer {} in:\n{body}",
+        sub_id.0
+    );
+}

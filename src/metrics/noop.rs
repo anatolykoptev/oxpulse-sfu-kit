@@ -36,6 +36,7 @@ impl SfuMetrics {
     ) {
     }
     pub(crate) fn update_peer_bwe(&self, _peer_id: u64, _bps: u64) {}
+    pub(crate) fn update_peer_binding_term(&self, _peer_id: u64, _term: &str) {}
     #[cfg(feature = "active-speaker")]
     pub(crate) fn update_peer_speaker_scores(
         &self,

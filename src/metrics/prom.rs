@@ -39,6 +39,20 @@ pub struct SfuMetrics {
     pub peer_rtt_ms: GaugeVec,
     /// Per-peer egress bandwidth estimate in bits/s (from BWE), label: `peer_id`.
     pub bandwidth_estimate_bps: GaugeVec,
+    /// Counter — per-peer binding term of the combined bitrate estimate.
+    ///
+    /// Labels:
+    /// - `peer_id` — the subscriber whose estimate is being reported.
+    /// - `term` ∈ {"delay", "loss", "native", "googcc", "client_hint"} — the
+    ///   ceiling that won the `min()` chain in
+    ///   [`crate::bwe::PerSubscriber::combined_bps_with_term`].
+    ///
+    /// Incremented each time `Registry::update_pacer_layers` reads the combined
+    /// estimate, so the active term is the one with the most recent (or
+    /// positive-rate) increment. Used to observe whether the DataChannel
+    /// budget hint (`client_hint`) is the binding constraint on a subscriber's
+    /// bitrate (issue #2310 V0).
+    pub(crate) combined_bps_binding_term: IntCounterVec,
     /// Per-peer immediate-window speaker activity score, label: `peer_id`.
     pub speaker_immediate: GaugeVec,
     /// Per-peer medium-window speaker activity score, label: `peer_id`.
@@ -180,6 +194,16 @@ impl SfuMetrics {
         )
         .context("bandwidth_estimate_bps")?);
 
+        let combined_bps_binding_term = reg!(IntCounterVec::new(
+            Opts::new(
+                "combined_bps_binding_term",
+                "Per-peer binding term of the combined bitrate estimate. \
+                 Labels peer_id and term (delay | loss | native | googcc | client_hint)."
+            ),
+            &["peer_id", "term"],
+        )
+        .context("combined_bps_binding_term")?);
+
         let speaker_immediate = reg!(GaugeVec::new(
             Opts::new(
                 "speaker_immediate_score",
@@ -276,6 +300,7 @@ impl SfuMetrics {
             peer_jitter_ms,
             peer_rtt_ms,
             bandwidth_estimate_bps,
+            combined_bps_binding_term,
             speaker_immediate,
             speaker_medium,
             speaker_long,
@@ -390,6 +415,19 @@ impl SfuMetrics {
             .set(bps as f64);
     }
 
+    /// Record the binding term of the combined bitrate estimate for a subscriber.
+    ///
+    /// `term` must be one of `BindingTerm::as_str()` values
+    /// (`"delay"`, `"loss"`, `"native"`, `"googcc"`, `"client_hint"`).
+    /// Called once per `Registry::update_pacer_layers` tick so the active
+    /// term is visible in the rate of `sfu_combined_bps_binding_term`.
+    pub(crate) fn update_peer_binding_term(&self, peer_id: u64, term: &str) {
+        let label = peer_id.to_string();
+        self.combined_bps_binding_term
+            .with_label_values(&[label.as_str(), term])
+            .inc();
+    }
+
     #[cfg(feature = "active-speaker")]
     pub(crate) fn update_peer_speaker_scores(
         &self,
@@ -447,6 +485,14 @@ impl SfuMetrics {
         let _ = self.speaker_immediate.remove_label_values(lv);
         let _ = self.speaker_medium.remove_label_values(lv);
         let _ = self.speaker_long.remove_label_values(lv);
+        #[cfg(feature = "kalman-bwe")]
+        {
+            for term in crate::bwe::BindingTerm::ALL {
+                let _ = self
+                    .combined_bps_binding_term
+                    .remove_label_values(&[label.as_str(), term.as_str()]);
+            }
+        }
         self.reap_video_frames_dropped(peer_id);
     }
 }
