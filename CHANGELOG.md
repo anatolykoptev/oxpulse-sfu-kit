@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.12.1...v0.12.2) (2026-07-13)
+
+
+### Added
+
+* add sfu_combined_bps_binding_term metric ([#53](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/53)) ([d1103d1](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/d1103d18e1d326be8884bf73d19a2ec6f1210978))
+
 ## [0.12.1](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.12.0...v0.12.1) (2026-07-12)
 
 
