@@ -4,7 +4,7 @@
 **Rust:** 1.88 (stable)
 **Profile:** `bench` (release + LTO)
 **Date:** 2026-05-14
-**Note:** krolik-ARM numbers will land in D-Lite 4 after the synthetic_room load
+**Note:** build-server ARM numbers will land in D-Lite 4 after the synthetic_room load
 generator (D-Lite 3) is wired. Expect ARM latencies to be ~1.5–2× higher for
 compute-heavy paths (Kalman filter) and comparable for memory-bound paths.
 
@@ -97,7 +97,7 @@ registry/handle_incoming/peers/50  time:   [153.31 µs 161.06 µs 169.67 µs]
 
 None — all four planned harnesses are implemented and run.
 
-## Future baseline (krolik ARM)
+## Future baseline (build-server ARM)
 
 To be added in D-Lite 4 after D-Lite 3 (`synthetic_room`) lands on main. Run:
 
@@ -108,11 +108,11 @@ CARGO_BUILD_JOBS=2 cargo bench --bench pacer --features pacer
 CARGO_BUILD_JOBS=2 cargo bench --bench registry --features test-utils
 ```
 
-Append results here under `# Baseline — v0.11.4 on krolik (Linux ARM, Oracle Cloud)`.
+Append results here under `# Baseline — v0.11.4 on the build server (Linux ARM, Oracle Cloud)`.
 
 ---
 
-## Linux ARM (krolik) — v0.11.5 (commit 329990d) — 2026-05-14
+## Linux ARM (build server) — v0.11.5 (commit 329990d) — 2026-05-14
 
 **Platform:** Oracle Cloud arm-max-1768977332, ARM 24 GB (aarch64-unknown-linux-gnu)
 **Rust:** 1.95.0 (stable)
@@ -122,7 +122,7 @@ Append results here under `# Baseline — v0.11.4 on krolik (Linux ARM, Oracle C
 
 ### Comparison
 
-| Bench | macOS Apple Silicon (median) | Linux ARM krolik (median) | Delta |
+| Bench | macOS Apple Silicon (median) | Linux ARM build server (median) | Delta |
 |---|---|---|---|
 | bwe_estimator/record_send_time/steady | 449 ns | 469 ns | +4% |
 | bwe_estimator/record_send_time/at_cap | 2.32 µs | 4.14 µs | +79% |
@@ -177,7 +177,7 @@ registry/handle_incoming/peers/50  time:   [203.84 µs 220.88 µs 248.97 µs]   
 
 - **GoogCC `on_receive`:** -45% to -46%. Surprising. Likely explained by ARM
   vector/NEON being well-suited to the trendline detector's float arithmetic, combined
-  with the krolik ARM CPU being a newer generation (Oracle Cloud arm-max = Ampere Altra
+  with the build-server ARM CPU being a newer generation (Oracle Cloud arm-max = Ampere Altra
   Q80-30 equivalent) with a large out-of-order execution window. macOS M-series
   throttles sustained bench workloads differently.
 
@@ -204,8 +204,8 @@ registry/handle_incoming/peers/50  time:   [203.84 µs 220.88 µs 248.97 µs]   
   more reliable (more iterations, less jitter). ARM's lower per-core memory bandwidth
   explains the gap; the linear scan traverses all Client structs in the Vec.
 
-**Summary:** For the current 1:1–8-peer oxpulse-chat workload, ARM krolik performance
+**Summary:** For the current 1:1–8-peer oxpulse-chat workload, ARM build-server performance
 is adequate. The bottlenecks flagged (HashMap eviction scan at capacity, registry full
 scan) are the same on both platforms, just ~2× worse on ARM due to memory bandwidth.
-The GoogCC path is actually faster on krolik — real-world call quality will not degrade
+The GoogCC path is actually faster on the build server — real-world call quality will not degrade
 on ARM.
