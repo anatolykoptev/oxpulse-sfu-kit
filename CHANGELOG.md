@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.12.2...v0.12.3) (2026-11-11)
+
+
+### Fixed
+
+* normalize LICENSE to canonical Apache-2.0 text for GitHub license detection ([#55](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/55)) ([39fe348](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/39fe3488b8c867de411e4cce422d8b42e6788dc1))
+
+
+### Documentation
+
+* bring repository documents up to the repo-standards set ([#58](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/58)) ([4875715](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/48757158d7ec47c74774438d25c9b73e8049bbec))
+* link the licence files from docs/INDEX.md ([#60](https://github.com/anatolykoptev/oxpulse-sfu-kit/issues/60)) ([198e93c](https://github.com/anatolykoptev/oxpulse-sfu-kit/commit/198e93c1b90135a879d0bf826def8f89c40968c8))
+
 ## [0.12.2](https://github.com/anatolykoptev/oxpulse-sfu-kit/compare/v0.12.1...v0.12.2) (2026-07-13)
 
 
