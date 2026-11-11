@@ -14,3 +14,5 @@
 | [BASELINE](../benches/BASELINE.md) | Criterion benchmark baseline for v0.11.4 on Apple Silicon |
 | [SECURITY](../SECURITY.md) | How to report a vulnerability privately |
 | [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md) | Contributor Covenant 3.0 Code of Conduct |
+| [LICENSE-MIT](../LICENSE-MIT) | MIT licence, one of the two offered |
+| [LICENSE-APACHE](../LICENSE-APACHE) | Apache-2.0 licence, the other of the two offered |
