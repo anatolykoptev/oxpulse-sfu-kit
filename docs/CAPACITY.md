@@ -1,4 +1,4 @@
-# Capacity — krolik (Linux ARM, 24 GB) — 2026-05-14
+# Capacity — build server (Linux ARM, 24 GB) — 2026-05-14
 
 **Hardware:** Oracle Cloud arm-max-1768977332, ARM 24 GB RAM, 4 vCPUs.
 **OS:** Ubuntu Linux (aarch64-unknown-linux-gnu).
@@ -53,7 +53,7 @@ where p99 crosses 200 µs. That is not measured — extrapolated from the 32→5
 Comfortable ceiling for current 1:1–8-peer oxpulse-chat workload. Headroom is large.
 
 **Estimated max simultaneous rooms (extrapolation, NOT measured):** At 8 peers per
-room (current typical workload) and 4.1 MB RSS per room, krolik (24 GB) could in
+room (current typical workload) and 4.1 MB RSS per room, the build server (24 GB) could in
 theory hold ~5,800 rooms before RAM is exhausted. CPU is the real bound: 4.3% per
 core at 50 peers scales to ~0.4% per core at 8 peers, so at ~600 simultaneous 8-peer
 rooms the process would saturate one core. The real limit for a 4-core ARM node is
@@ -73,7 +73,7 @@ back-of-envelope, not measured.
 ## Reproduce
 
 ```bash
-ssh krolik
+ssh <build-server>
 cd ~/tmp/oxpulse-sfu-kit-d-lite-4-runs
 
 # Build once (needs --features all)
